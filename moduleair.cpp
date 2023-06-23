@@ -29,17 +29,9 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 
 // extern SPIClass SPI_H; en bas
 
-//Dans PXMatrix
+//PxMatrix utilise le SPI normal
 
-//On remplace tous les SPI. par SPI_H.
-
-//On définit les pins:
-
-// // HW SPI PINS
-// #define SPI_BUS_CLK 14
-// #define SPI_BUS_MOSI 13
-// #define SPI_BUS_MISO 12
-// #define SPI_BUS_SS 4
+//SD utilise le SPI_H
 
 //on remplace la glcdfont.c original dans AdaFruitGFX => mod dans le dossier Fonts
 
@@ -57,7 +49,7 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 // includes ESP32 libraries
 #define FORMAT_SPIFFS_IF_FAILED true
 #include <FS.h>
-#include <SD.h>
+#include <SD.h>   //REVOIR QUI SUR SPI QUI SUR SPI_H
 #include <HTTPClient.h>
 #include <SPIFFS.h>
 #include <HardwareSerial.h>
@@ -104,6 +96,37 @@ long int sample_count = 0;
 bool bmx280_init_failed = false;
 bool ccs811_init_failed = false;
 bool moduleair_selftest_failed = false;
+bool sdcard_found = false;
+bool file_created = false;
+
+
+
+
+namespace cfg
+{
+	unsigned debug = DEBUG;
+	unsigned sending_intervall_ms = SENDING_INTERVALL_MS;
+
+	// main config
+	bool has_sdcard = HAS_SDCARD;
+	bool has_matrix = HAS_MATRIX;
+
+	// (in)active sensors
+	bool sds_read = SDS_READ;
+	bool npm_read = NPM_READ;
+	bool bmx280_read = BMX280_READ;
+	bool mhz16_read = MHZ16_READ;
+	bool mhz19_read = MHZ19_READ;
+	bool ccs811_read = CCS811_READ;
+	bool enveano2_read = ENVEANO2_READ;
+
+	bool display_measure = DISPLAY_MEASURE;
+	bool display_forecast = DISPLAY_FORECAST;
+	bool display_wifi_info = DISPLAY_WIFI_INFO;
+	bool display_lora_info = DISPLAY_LORA_INFO;
+	bool display_device_info = DISPLAY_DEVICE_INFO;
+
+}
 
 
 /*****************************************************************
@@ -189,7 +212,9 @@ void drawImage(int x, int y, int h, int w, uint16_t image[])
 	}
 }
 
-bool gamma_correction = true; //Gamma correction
+bool gamma_correction = GAMMA; //Gamma correction
+
+//REVOIR TOUS LES GRADIENTS
 
 struct RGB interpolateint(float valueSensor, int step1, int step2, int step3, bool correction)
 {
@@ -563,6 +588,837 @@ struct RGB interpolateint4(float valueSensor, int step1, int step2, bool correct
 
 //You can use drawGradient once in order to get the list of colors and then create an image which is much faster to display
 
+
+struct RGB colorNO2(int valueSensor, int step1, int step2, int step3, int step4, int step5, bool correction)
+{
+	struct RGB result;
+	uint16_t rgb565;
+
+	if (valueSensor == 0)
+	{
+		result.R = 80;
+		result.G = 240; //blue
+		result.B = 230;
+	}
+	else if (valueSensor > 0 && valueSensor <= step5)
+	{
+		if (valueSensor <= step1)
+		{
+			result.R = 80;
+			result.G = 240; //blue
+			result.B = 230;
+		}
+		else if (valueSensor > step1 && valueSensor <= step2)
+		{
+			result.R = 80;
+			result.G = 204; //green
+			result.B = 170;
+		}
+		else if (valueSensor > step2 && valueSensor <= step3)
+		{
+			result.R = 237;
+			result.G = 230; //yellow
+			result.B = 97;
+		}
+		else if (valueSensor > step3 && valueSensor <= step4)
+		{
+			result.R = 237;
+			result.G = 94; //orange
+			result.B = 88;
+		}
+		else if (valueSensor > step4 && valueSensor <= step5)
+		{
+			result.R = 136;
+			result.G = 26; //red
+			result.B = 51;
+		}
+	}
+	else if (valueSensor > step5)
+	{
+		result.R = 115;
+		result.G = 40; //violet
+		result.B = 125;
+	}
+	else
+	{
+		result.R = 0;
+		result.G = 0;
+		result.B = 0;
+	}
+
+	//Gamma Correction
+
+	if (correction == true)
+	{
+		result.R = pgm_read_byte(&gamma8[result.R]);
+		result.G = pgm_read_byte(&gamma8[result.G]);
+		result.B = pgm_read_byte(&gamma8[result.B]);
+	}
+
+	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+	return result;
+}
+
+struct RGB interpolateNO2(float valueSensor, int step1, int step2, int step3, int step4, int step5, bool correction)
+{
+
+	byte endColorValueR;
+	byte startColorValueR;
+	byte endColorValueG;
+	byte startColorValueG;
+	byte endColorValueB;
+	byte startColorValueB;
+
+	int valueLimitHigh;
+	int valueLimitLow;
+	struct RGB result;
+	uint16_t rgb565;
+
+	if (valueSensor == 0)
+	{
+
+		result.R = 80;
+		result.G = 240; //blue
+		result.B = 230;
+	}
+	else if (valueSensor > 0 && valueSensor <= step5)
+	{
+		if (valueSensor <= step1)
+		{
+			valueLimitHigh = step1;
+			valueLimitLow = 0;
+			endColorValueR = 80;
+			startColorValueR = 80; //blue to green
+			endColorValueG = 204;
+			startColorValueG = 240;
+			endColorValueB = 170;
+			startColorValueB = 230;
+		}
+		else if (valueSensor > step1 && valueSensor <= step2)
+		{
+			valueLimitHigh = step2;
+			valueLimitLow = step1;
+			endColorValueR = 237;
+			startColorValueR = 80;
+			endColorValueG = 230; //green to yellow
+			startColorValueG = 204;
+			endColorValueB = 97;
+			startColorValueB = 170;
+		}
+		else if (valueSensor > step2 && valueSensor <= step3)
+		{
+			valueLimitHigh = step3;
+			valueLimitLow = step2;
+			endColorValueR = 237;
+			startColorValueR = 237;
+			endColorValueG = 94; //yellow to orange
+			startColorValueG = 230;
+			endColorValueB = 88;
+			startColorValueB = 97;
+		}
+		else if (valueSensor > step3 && valueSensor <= step4)
+		{
+
+			valueLimitHigh = step4;
+			valueLimitLow = step3;
+			endColorValueR = 136;
+			startColorValueR = 237;
+			endColorValueG = 26; // orange to red
+			startColorValueG = 94;
+			endColorValueB = 51;
+			startColorValueB = 88;
+		}
+		else if (valueSensor > step4 && valueSensor <= step5)
+		{
+			valueLimitHigh = step5;
+			valueLimitLow = step4;
+			endColorValueR = 115;
+			startColorValueR = 136;
+			endColorValueG = 40; // red to violet
+			startColorValueG = 26;
+			endColorValueB = 125;
+			startColorValueB = 51;
+		}
+
+		result.R = (byte)(((endColorValueR - startColorValueR) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueR);
+		result.G = (byte)(((endColorValueG - startColorValueG) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueG);
+		result.B = (byte)(((endColorValueB - startColorValueB) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueB);
+	}
+	else if (valueSensor > step5)
+	{
+		result.R = 115;
+		result.G = 40; //violet
+		result.B = 125;
+	}
+	else
+	{
+		result.R = 0;
+		result.G = 0;
+		result.B = 0;
+	}
+
+	//Gamma Correction
+
+	if (correction == true)
+	{
+		result.R = pgm_read_byte(&gamma8[result.R]);
+		result.G = pgm_read_byte(&gamma8[result.G]);
+		result.B = pgm_read_byte(&gamma8[result.B]);
+	}
+
+	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+	return result;
+}
+
+//LAST VERSIONS OF GRADIENT
+
+// struct RGB colorPM(int valueSensor, int step1, int step2, int step3, int step4, int step5, bool correction)
+// {
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor == 0)
+// 	{
+// 		result.R = 80;
+// 		result.G = 240; //blue
+// 		result.B = 230;
+// 	}
+// 	else if (valueSensor > 0 && valueSensor <= step5)
+// 	{
+// 		if (valueSensor <= step1)
+// 		{
+// 			result.R = 80;
+// 			result.G = 240; //blue
+// 			result.B = 230;
+// 		}
+// 		else if (valueSensor > step1 && valueSensor <= step2)
+// 		{
+// 			result.R = 80;
+// 			result.G = 204; //green
+// 			result.B = 170;
+// 		}
+// 		else if (valueSensor > step2 && valueSensor <= step3)
+// 		{
+// 			result.R = 237;
+// 			result.G = 230; //yellow
+// 			result.B = 97;
+// 		}
+// 		else if (valueSensor > step3 && valueSensor <= step4)
+// 		{
+// 			result.R = 237;
+// 			result.G = 94; //orange
+// 			result.B = 88;
+// 		}
+// 		else if (valueSensor > step4 && valueSensor <= step5)
+// 		{
+// 			result.R = 136;
+// 			result.G = 26; //red
+// 			result.B = 51;
+// 		}
+// 	}
+// 	else if (valueSensor > step5)
+// 	{
+// 		result.R = 115;
+// 		result.G = 40; //violet
+// 		result.B = 125;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	//Gamma Correction
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB interpolatePM(float valueSensor, int step1, int step2, int step3, int step4, int step5, bool correction)
+// {
+
+// 	byte endColorValueR;
+// 	byte startColorValueR;
+// 	byte endColorValueG;
+// 	byte startColorValueG;
+// 	byte endColorValueB;
+// 	byte startColorValueB;
+
+// 	int valueLimitHigh;
+// 	int valueLimitLow;
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor == 0)
+// 	{
+
+// 		result.R = 80;
+// 		result.G = 240; //blue
+// 		result.B = 230;
+// 	}
+// 	else if (valueSensor > 0 && valueSensor <= step5)
+// 	{
+// 		if (valueSensor <= step1)
+// 		{
+// 			valueLimitHigh = step1;
+// 			valueLimitLow = 0;
+// 			endColorValueR = 80;
+// 			startColorValueR = 80; //blue to green
+// 			endColorValueG = 204;
+// 			startColorValueG = 240;
+// 			endColorValueB = 170;
+// 			startColorValueB = 230;
+// 		}
+// 		else if (valueSensor > step1 && valueSensor <= step2)
+// 		{
+// 			valueLimitHigh = step2;
+// 			valueLimitLow = step1;
+// 			endColorValueR = 237;
+// 			startColorValueR = 80;
+// 			endColorValueG = 230; //green to yellow
+// 			startColorValueG = 204;
+// 			endColorValueB = 97;
+// 			startColorValueB = 170;
+// 		}
+// 		else if (valueSensor > step2 && valueSensor <= step3)
+// 		{
+// 			valueLimitHigh = step3;
+// 			valueLimitLow = step2;
+// 			endColorValueR = 237;
+// 			startColorValueR = 237;
+// 			endColorValueG = 94; //yellow to orange
+// 			startColorValueG = 230;
+// 			endColorValueB = 88;
+// 			startColorValueB = 97;
+// 		}
+// 		else if (valueSensor > step3 && valueSensor <= step4)
+// 		{
+
+// 			valueLimitHigh = step4;
+// 			valueLimitLow = step3;
+// 			endColorValueR = 136;
+// 			startColorValueR = 237;
+// 			endColorValueG = 26; // orange to red
+// 			startColorValueG = 94;
+// 			endColorValueB = 51;
+// 			startColorValueB = 88;
+// 		}
+// 		else if (valueSensor > step4 && valueSensor <= step5)
+// 		{
+// 			valueLimitHigh = step5;
+// 			valueLimitLow = step4;
+// 			endColorValueR = 115;
+// 			startColorValueR = 136;
+// 			endColorValueG = 40; // red to violet
+// 			startColorValueG = 26;
+// 			endColorValueB = 125;
+// 			startColorValueB = 51;
+// 		}
+
+// 		result.R = (byte)(((endColorValueR - startColorValueR) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueR);
+// 		result.G = (byte)(((endColorValueG - startColorValueG) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueG);
+// 		result.B = (byte)(((endColorValueB - startColorValueB) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueB);
+// 	}
+// 	else if (valueSensor > step5)
+// 	{
+// 		result.R = 115;
+// 		result.G = 40; //violet
+// 		result.B = 125;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	//Gamma Correction
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB interpolateCOV(float valueSensor, int step1, int step2, bool correction)
+// {
+
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor == 0)
+// 	{
+// 		result.R = 0;
+// 		result.G = 255; // Green entre 0 et 800
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor > 0 && valueSensor < step1)
+// 	{
+
+// 		result.R = 0;
+// 		result.G = 255; // Green entre 0 et 800
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor >= step1 && valueSensor < step2)
+// 	{
+// 		result.R = 255;
+// 		result.G = 140; // Orange entre 800 et 1500
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor >= step2)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // Rouge supérieur à 1500
+// 		result.B = 0;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB colorNO2(int valueSensor, int step1, int step2, int step3, int step4, int step5, bool correction)
+// {
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor == 0)
+// 	{
+// 		result.R = 80;
+// 		result.G = 240; //blue
+// 		result.B = 230;
+// 	}
+// 	else if (valueSensor > 0 && valueSensor <= step5)
+// 	{
+// 		if (valueSensor <= step1)
+// 		{
+// 			result.R = 80;
+// 			result.G = 240; //blue
+// 			result.B = 230;
+// 		}
+// 		else if (valueSensor > step1 && valueSensor <= step2)
+// 		{
+// 			result.R = 80;
+// 			result.G = 204; //green
+// 			result.B = 170;
+// 		}
+// 		else if (valueSensor > step2 && valueSensor <= step3)
+// 		{
+// 			result.R = 237;
+// 			result.G = 230; //yellow
+// 			result.B = 97;
+// 		}
+// 		else if (valueSensor > step3 && valueSensor <= step4)
+// 		{
+// 			result.R = 237;
+// 			result.G = 94; //orange
+// 			result.B = 88;
+// 		}
+// 		else if (valueSensor > step4 && valueSensor <= step5)
+// 		{
+// 			result.R = 136;
+// 			result.G = 26; //red
+// 			result.B = 51;
+// 		}
+// 	}
+// 	else if (valueSensor > step5)
+// 	{
+// 		result.R = 115;
+// 		result.G = 40; //violet
+// 		result.B = 125;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	//Gamma Correction
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB interpolateNO2(float valueSensor, int step1, int step2, int step3, int step4, int step5, bool correction)
+// {
+
+// 	byte endColorValueR;
+// 	byte startColorValueR;
+// 	byte endColorValueG;
+// 	byte startColorValueG;
+// 	byte endColorValueB;
+// 	byte startColorValueB;
+
+// 	int valueLimitHigh;
+// 	int valueLimitLow;
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor == 0)
+// 	{
+
+// 		result.R = 80;
+// 		result.G = 240; //blue
+// 		result.B = 230;
+// 	}
+// 	else if (valueSensor > 0 && valueSensor <= step5)
+// 	{
+// 		if (valueSensor <= step1)
+// 		{
+// 			valueLimitHigh = step1;
+// 			valueLimitLow = 0;
+// 			endColorValueR = 80;
+// 			startColorValueR = 80; //blue to green
+// 			endColorValueG = 204;
+// 			startColorValueG = 240;
+// 			endColorValueB = 170;
+// 			startColorValueB = 230;
+// 		}
+// 		else if (valueSensor > step1 && valueSensor <= step2)
+// 		{
+// 			valueLimitHigh = step2;
+// 			valueLimitLow = step1;
+// 			endColorValueR = 237;
+// 			startColorValueR = 80;
+// 			endColorValueG = 230; //green to yellow
+// 			startColorValueG = 204;
+// 			endColorValueB = 97;
+// 			startColorValueB = 170;
+// 		}
+// 		else if (valueSensor > step2 && valueSensor <= step3)
+// 		{
+// 			valueLimitHigh = step3;
+// 			valueLimitLow = step2;
+// 			endColorValueR = 237;
+// 			startColorValueR = 237;
+// 			endColorValueG = 94; //yellow to orange
+// 			startColorValueG = 230;
+// 			endColorValueB = 88;
+// 			startColorValueB = 97;
+// 		}
+// 		else if (valueSensor > step3 && valueSensor <= step4)
+// 		{
+
+// 			valueLimitHigh = step4;
+// 			valueLimitLow = step3;
+// 			endColorValueR = 136;
+// 			startColorValueR = 237;
+// 			endColorValueG = 26; // orange to red
+// 			startColorValueG = 94;
+// 			endColorValueB = 51;
+// 			startColorValueB = 88;
+// 		}
+// 		else if (valueSensor > step4 && valueSensor <= step5)
+// 		{
+// 			valueLimitHigh = step5;
+// 			valueLimitLow = step4;
+// 			endColorValueR = 115;
+// 			startColorValueR = 136;
+// 			endColorValueG = 40; // red to violet
+// 			startColorValueG = 26;
+// 			endColorValueB = 125;
+// 			startColorValueB = 51;
+// 		}
+
+// 		result.R = (byte)(((endColorValueR - startColorValueR) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueR);
+// 		result.G = (byte)(((endColorValueG - startColorValueG) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueG);
+// 		result.B = (byte)(((endColorValueB - startColorValueB) * ((valueSensor - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueB);
+// 	}
+// 	else if (valueSensor > step5)
+// 	{
+// 		result.R = 115;
+// 		result.G = 40; //violet
+// 		result.B = 125;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	//Gamma Correction
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB interpolateHumi(float valueSensor, int step1, int step2, bool correction) // Humi
+// {
+
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor == 0)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // red
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor > 0 && valueSensor < step1)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // red
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor >= step1 && valueSensor < step2)
+// 	{
+// 		result.R = 0;
+// 		result.G = 255; // green
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor > step2)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // red
+// 		result.B = 0;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB interpolatePress(float valueSensor, int step1, int step2, bool correction) // Humi
+// {
+
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor == 0)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // red
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor > 0 && valueSensor < step1)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // red
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor >= step1 && valueSensor < step2)
+// 	{
+// 		result.R = 0;
+// 		result.G = 255; // green
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor > step2)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // red
+// 		result.B = 0;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB interpolateTemp(float valueSensor, int step1, int step2, bool correction) // temp
+// {
+
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSensor >= -128 && valueSensor < step1)
+// 	{
+// 		result.R = 0;
+// 		result.G = 0; // Bleu / Trop froid inférieur à 19 (step1)
+// 		result.B = 255;
+// 	}
+// 	else if (valueSensor >= step1 && valueSensor < step2)
+// 	{
+// 		result.R = 0;
+// 		result.G = 255; // Green ok
+// 		result.B = 0;
+// 	}
+// 	else if (valueSensor >= step2)
+// 	{
+// 		result.R = 255;
+// 		result.G = 0; // RED / trop chaud supérieur à 28
+// 		result.B = 0;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	if (correction == true)
+// 	{
+// 		result.R = pgm_read_byte(&gamma8[result.R]);
+// 		result.G = pgm_read_byte(&gamma8[result.G]);
+// 		result.B = pgm_read_byte(&gamma8[result.B]);
+// 	}
+
+// 	rgb565 = ((result.R & 0b11111000) << 8) | ((result.G & 0b11111100) << 3) | (result.B >> 3);
+// 	//Debug.println(rgb565); // to get list of color if drawGradient is acitvated
+// 	return result;
+// }
+
+// struct RGB interpolateSignal(int32_t valueSignal, int step1, int step2)
+// {
+
+// 	byte endColorValueR;
+// 	byte startColorValueR;
+// 	byte endColorValueG;
+// 	byte startColorValueG;
+// 	byte endColorValueB;
+// 	byte startColorValueB;
+
+// 	int valueLimitHigh;
+// 	int valueLimitLow;
+// 	struct RGB result;
+// 	uint16_t rgb565;
+
+// 	if (valueSignal == 0)
+// 	{
+
+// 		result.R = 255;
+// 		result.G = 0; //red
+// 		result.B = 0;
+// 	}
+// 	else if (valueSignal > 0 && valueSignal < 100)
+// 	{
+// 		if (valueSignal <= step1)
+// 		{
+// 			valueLimitHigh = step1;
+// 			valueLimitLow = 0;
+// 			endColorValueR = 255;
+// 			startColorValueR = 255; //red to orange
+// 			endColorValueG = 128;
+// 			startColorValueG = 0;
+// 			endColorValueB = 0;
+// 			startColorValueB = 0;
+// 		}
+// 		else if (valueSignal > step1 && valueSignal <= step2)
+// 		{
+// 			valueLimitHigh = step2;
+// 			valueLimitLow = step1;
+// 			endColorValueR = 255;
+// 			startColorValueR = 255;
+// 			endColorValueG = 255; //orange to yellow
+// 			startColorValueG = 128;
+// 			endColorValueB = 0;
+// 			startColorValueB = 0;
+// 		}
+// 		else if (valueSignal > step2)
+// 		{
+// 			valueLimitHigh = 100;
+// 			valueLimitLow = step2;
+// 			endColorValueR = 0;
+// 			startColorValueR = 255;
+// 			endColorValueG = 255; // yellow to green
+// 			startColorValueG = 255;
+// 			endColorValueB = 0;
+// 			startColorValueB = 0;
+// 		}
+
+// 		result.R = (byte)(((endColorValueR - startColorValueR) * ((valueSignal - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueR);
+// 		result.G = (byte)(((endColorValueG - startColorValueG) * ((valueSignal - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueG);
+// 		result.B = (byte)(((endColorValueB - startColorValueB) * ((valueSignal - valueLimitLow) / (valueLimitHigh - valueLimitLow))) + startColorValueB);
+// 	}
+// 	else if (valueSignal >= 100)
+// 	{
+// 		result.R = 0;
+// 		result.G = 255; //green
+// 		result.B = 0;
+// 	}
+// 	else
+// 	{
+// 		result.R = 0;
+// 		result.G = 0;
+// 		result.B = 0;
+// 	}
+
+// 	return result;
+// }
+
+
+
+
+
+
+
+
+
+
+
 void drawgradient(int x, int y, float valueSensor, int step1, int step2, int step3, int step4, int step5)
 {
 	int gradientHeight = 7;
@@ -814,6 +1670,7 @@ uint8_t forecast_selector;
 #define serialSDS (Serial1)
 #define serialNPM (Serial1)
 #define serialMHZ (Serial2)
+EspSoftwareSerial::UART serialNO2; //Serial3
 
 /*****************************************************************
  * BMP/BME280 declaration                                        *
@@ -851,6 +1708,7 @@ unsigned long starttime_NPM;
 unsigned long starttime_MHZ16;
 unsigned long starttime_MHZ19;
 unsigned long starttime_CCS811;
+unsigned long starttime_Cairsens;
 unsigned long last_NPM;
 unsigned long act_micro;
 unsigned long act_milli;
@@ -1786,15 +2644,17 @@ static void display_values_matrix()
 
 	String co2_sensor;
 	String cov_sensor;
+	String no2_sensor;
 
 	float co2_value = -1.0;
 	float cov_value = -1.0;
+	float no2_value = -1.0;
 
 	double lat_value = -200.0;
 	double lon_value = -200.0;
 	double alt_value = -1000.0;
 	uint8_t screen_count = 0;
-	uint8_t screens[25];
+	uint8_t screens[26];
 	int line_count = 0;
 	//debug_outln_info(F("output values to matrix..."));
 
@@ -1849,7 +2709,14 @@ static void display_values_matrix()
 		cov_sensor = FPSTR(SENSORS_CCS811);
 	}
 
-	if ((cfg::sds_read || cfg::npm_read || cfg::bmx280_read || cfg::mhz16_read || cfg::mhz19_read || cfg::ccs811_read) && cfg::display_measure)
+	if (cfg::enveano2_read)
+	{
+		cov_value = last_value_no2;
+		cov_sensor = FPSTR(SENSORS_ENVEANO2);
+	}
+
+
+	if ((cfg::sds_read || cfg::npm_read || cfg::bmx280_read || cfg::mhz16_read || cfg::mhz19_read || cfg::ccs811_read || cfg::enveano2_read) && cfg::display_measure)
 	{
 		screens[screen_count++] = 0; //Air intérieur
 	}
@@ -1889,52 +2756,58 @@ static void display_values_matrix()
 			screens[screen_count++] = 8;
 	}
 
+	if (cfg::enveano2_read && cfg::display_measure)
+	{
+		if (cfg_screen_envean02)
+		screens[screen_count++] = 9;
+	}
+
 	if (cfg::bmx280_read && cfg::display_measure)
 	{
 		if (cfg_screen_temp)
-			screens[screen_count++] = 9; //T
+			screens[screen_count++] = 10; //T
 		if (cfg_screen_humi)
-			screens[screen_count++] = 10; //H
+			screens[screen_count++] = 11; //H
 		if (cfg_screen_press)
-			screens[screen_count++] = 11; //P
+			screens[screen_count++] = 12; //P
 	}
 
 	if (cfg::display_forecast)
 	{
-		screens[screen_count++] = 12; // Air exterieur
+		screens[screen_count++] = 13; // Air exterieur
 		if (cfg_screen_atmo_index)
-			screens[screen_count++] = 13; // Atmo Sud forecast Indice
+			screens[screen_count++] = 14; // Atmo Sud forecast Indice
 		if (cfg_screen_atmo_no2)
-			screens[screen_count++] = 14; // Atmo Sud forecast NO2
+			screens[screen_count++] = 15; // Atmo Sud forecast NO2
 		if (cfg_screen_atmo_o3)
-			screens[screen_count++] = 15; // Atmo Sud forecast O3
+			screens[screen_count++] = 16; // Atmo Sud forecast O3
 		if (cfg_screen_atmo_pm10)
-			screens[screen_count++] = 16; // Atmo Sud forecast PM10
+			screens[screen_count++] = 17; // Atmo Sud forecast PM10
 		if (cfg_screen_atmo_pm25)
-			screens[screen_count++] = 17; // Atmo Sud forecast PM2.5
-		if (cfg_screen_atmo_so2)
 			screens[screen_count++] = 18; // Atmo Sud forecast PM2.5
+		if (cfg_screen_atmo_so2)
+			screens[screen_count++] = 19; // Atmo Sud forecast PM2.5
 	}
 
 	if (cfg::display_wifi_info && cfg::has_wifi)
 	{
-		screens[screen_count++] = 19; // Wifi info
+		screens[screen_count++] = 20; // Wifi info
 	}
 	if (cfg::display_device_info)
 	{
-		screens[screen_count++] = 20; // chipID, firmware and count of measurements
-		screens[screen_count++] = 21; // Latitude, longitude, altitude
+		screens[screen_count++] = 21; // chipID, firmware and count of measurements
+		screens[screen_count++] = 22; // Latitude, longitude, altitude
 		if (cfg::npm_read && cfg::display_measure)
 		{
-			screens[screen_count++] = 22; // info NPM
+			screens[screen_count++] = 23; // info NPM
 		}
 	}
 	if (cfg::display_lora_info && cfg::has_lora)
 	{
-		screens[screen_count++] = 23; // Lora info
+		screens[screen_count++] = 24; // Lora info
 	}
 
-	screens[screen_count++] = 24; // Logos
+	screens[screen_count++] = 25; // Logos
 
 	switch (screens[next_display_count % screen_count])
 	{
@@ -2235,7 +3108,37 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 9:
+		case 9:
+		if (no2_value != -1.0)
+		{
+			display.fillScreen(myBLACK);
+			display.setTextColor(myCYAN);
+			display.setFont(NULL);
+			display.setCursor(1, 0);
+			display.setTextSize(1);
+			display.print("NO2");
+			display.setFont(&Font4x7Fixed);
+			display.setCursor(display.getCursorX() + 2, 7);
+			display.write(181);
+			display.print("g/m");
+			display.write(179);
+			drawImage(55, 0, 7, 9, maison);
+			display.setFont(NULL);
+			display.setTextSize(2);
+			display.setTextColor(myWHITE);
+			drawCentreString(String(no2_value, 0), 0, 9, 0);
+
+			//REVOIR COULEUR
+
+		}
+		else
+		{
+			act_milli += 5000;
+		}
+		break;
+
+
+	case 10:
 		if (t_value != -128.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2264,7 +3167,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 10:
+	case 11:
 		if (h_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2293,7 +3196,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 11:
+	case 12:
 		if (p_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2316,7 +3219,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 12:
+	case 13:
 		if (atmoSud.multi != -1.0 || atmoSud.no2 != -1.0 || atmoSud.o3 != -1.0 || atmoSud.pm10 != -1.0 || atmoSud.pm2_5 != -1.0 || atmoSud.so2 != -1.0)
 		{
 			drawImage(0, 0, 32, 64, exterieur);
@@ -2326,7 +3229,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 13:
+	case 14:
 		if (atmoSud.multi != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2357,7 +3260,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 14:
+	case 15:
 		if (atmoSud.no2 != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2398,7 +3301,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 15:
+	case 16:
 		if (atmoSud.o3 != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2439,7 +3342,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 16:
+	case 17:
 		if (atmoSud.pm10 != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2479,7 +3382,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 17:
+	case 18:
 		if (atmoSud.pm2_5 != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2519,7 +3422,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 18:
+	case 19:
 		if (atmoSud.so2 != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -2559,7 +3462,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 19:
+	case 20:
 		display.fillScreen(myBLACK);
 		display.setTextColor(myWHITE);
 		display.setFont(&Font4x5Fixed);
@@ -2576,7 +3479,7 @@ static void display_values_matrix()
 		display.print("Signal:");
 		display.print(String(calcWiFiSignalQuality(last_signal_strength)));
 		break;
-	case 20:
+	case 21:
 		display.fillScreen(myBLACK);
 		display.setTextColor(myWHITE);
 		display.setFont(&Font4x5Fixed);
@@ -2592,7 +3495,7 @@ static void display_values_matrix()
 		display.print("Meas.:");
 		display.print(String(count_sends));
 		break;
-	case 21:
+	case 22:
 		display.fillScreen(myBLACK);
 		display.setTextColor(myWHITE);
 		display.setFont(&Font4x5Fixed);
@@ -2608,7 +3511,7 @@ static void display_values_matrix()
 		display.print("Altitude:");
 		display.print(cfg::height_above_sealevel);
 		break;
-	case 22:
+	case 23:
 		if ((pm10_value != -1.0 || pm25_value != -1.0 || pm01_value != -1.0))
 		{
 			display.fillScreen(myBLACK);
@@ -2626,7 +3529,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 23:
+	case 24:
 		display.fillScreen(myBLACK);
 		display.setTextColor(myWHITE);
 		display.setFont(&Font4x5Fixed);
@@ -2639,7 +3542,7 @@ static void display_values_matrix()
 		display.setCursor(0, 22);
 		display.print(cfg::appkey);
 		break;
-	case 24:
+	case 25:
 		if (has_logo && (logos[logo_index + 1] != 0 && logo_index != 5))
 		{
 			logo_index++;
@@ -2814,7 +3717,6 @@ static void powerOnTestSensors()
 	if (cfg::has_matrix)
 	{
 		display.fillScreen(myBLACK);
-		// drawImage(31, 1, 30, 30, engrenage);
 		display.setTextColor(myWHITE);
 		display.setFont(NULL);
 		display.setTextSize(1);
@@ -2836,14 +3738,15 @@ static void powerOnTestSensors()
 	if (cfg::npm_read)
 	{
 		int8_t test_state;
-		//delay(15000); // wait a bit to be sure Next PM is ready to receive instructions.
 
+	if (cfg::has_matrix)
+	{
 		for (size_t i = 0; i < 30; ++i)
 			{
 				display.fillRect(i, 22, 1, 4, myWHITE);
 				delay(500);
 			}
-		
+	}else{delay(15000);};
 
 
 		test_state = NPM_get_state();
@@ -2922,26 +3825,38 @@ static void powerOnTestSensors()
 
 		if (nextpmconnected)
 		{
-			// delay(15000);
+		
+			if (cfg::has_matrix)
+	{
 
 			for (size_t i = 30; i < 54; ++i)
 			{
 				display.fillRect(i, 22, 1, 4, myWHITE);
 				delay(500);
 			}
+	}else{delay(15000);}
+
 			NPM_version_date();
 
+			if (cfg::has_matrix)
+	{
 			for (size_t i = 54; i < 60; ++i)
 			{
 				display.fillRect(i, 22, 1, 4, myWHITE);
 				delay(500);
 			}
+	}else{delay(3000);}
 			NPM_temp_humi();
+
+				if (cfg::has_matrix)
+	{
 			for (size_t i = 60; i < 64; ++i)
 			{
 				display.fillRect(i, 22, 1, 4, myWHITE);
 				delay(500);
 			}
+
+	}else{delay(2000);};
 		}
 	}
 
@@ -2963,6 +3878,45 @@ static void powerOnTestSensors()
 			debug_outln_error(F("Check CCS811 wiring"));
 			ccs811_init_failed = true;
 		}
+	}
+
+		if (cfg::has_sdcard)
+	{
+
+		if (!SD.begin(SD_SPI_BUS_SS, SD_SPI_BUS_MOSI, SD_SPI_BUS_MISO, SD_SPI_BUS_CLK))
+		{
+			Debug.println("Card Mount Failed");
+			return;
+		}
+		uint8_t cardType = SD.cardType();
+
+		if (cardType == CARD_NONE)
+		{
+			Debug.println("No SD card attached");
+			return;
+		}
+
+		Debug.print("SD Card Type: ");
+		if (cardType == CARD_MMC)
+		{
+			Debug.println("MMC");
+		}
+		else if (cardType == CARD_SD)
+		{
+			Debug.println("SDSC");
+		}
+		else if (cardType == CARD_SDHC)
+		{
+			Debug.println("SDHC");
+		}
+		else
+		{
+			Debug.println("UNKNOWN");
+		}
+
+		uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+		Debug.printf("SD Card Size: %lluMB\n", cardSize);
+		sdcard_found = true;
 	}
 }
 
@@ -2994,24 +3948,20 @@ void setup()
 	esp_chipid = String((uint16_t)(ESP.getEfuseMac() >> 32), HEX); // for esp32
 	esp_chipid += String((uint32_t)ESP.getEfuseMac(), HEX);
 	esp_chipid.toUpperCase();
-	cfg::initNonTrivials(esp_chipid.c_str());
 	WiFi.persistent(false);
 
 	debug_outln_info(F("ModuleAirV2: " SOFTWARE_VERSION_STR "/"), String(CURRENT_LANG));
 
-	spiffs_matrix = cfg::has_matrix; //save the spiffs state on start
 
-	Debug.println("spiffs_matrix: ");
-	Debug.println(spiffs_matrix);
+
+	Wire.begin(I2C_PIN_SDA, I2C_PIN_SCL);
+	Wire1.begin(I2C_PIN_SDA_2, I2C_PIN_SCL_2);  //REVOIRLES PINS
+
 
 	if (cfg::has_matrix)
 	{
 		init_matrix();
 	}
-
-	Wire.begin(I2C_PIN_SDA, I2C_PIN_SCL);
-	Debug.print("Lora chip connected:");
-	Debug.println(lorachip);
 
 	if (cfg::npm_read)
 	{
@@ -3020,7 +3970,7 @@ void setup()
 		serialNPM.setTimeout(400);
 	}
 
-	if (cfg::sds_read)
+	if (cfg::sds_read) 
 	{
 		serialSDS.begin(9600, SERIAL_8N1, PM_SERIAL_RX, PM_SERIAL_TX);
 		Debug.println("No Next PM... serialSDS 9600 8N1");
@@ -3047,9 +3997,16 @@ void setup()
 		}
 	}
 
+		if (cfg::enveano2_read)
+	{
+		serialNO2.begin(9600, EspSoftwareSerial::SWSERIAL_8N1, NO2_SERIAL_RX, NO2_SERIAL_TX); 
+		Debug.println("Envea Cairsens NO2... serialN02 9600 8N1 SoftwareSerial");
+		serialNO2.setTimeout((4 * 12 * 1000) / 9600);
+	}
+
 	debug_outln_info(F("\nChipId: "), esp_chipid);
 
-	if (cfg::has_matrix && cfg::has_wifi)
+	if (cfg::has_matrix)
 	{
 		display.fillScreen(myBLACK);
 		// drawImage(36, 6, 20, 27, wifiblue);
@@ -3081,21 +4038,7 @@ void setup()
 		display.fillScreen(myBLACK);
 	}
 
-	if (cfg::has_wifi)
-	{
-		setupNetworkTime();
-		connectWifi();
-		setup_webserver();
-	}
-	else
-	{
-		wifiConfig();
-	}
-
-	createLoggerConfigs();
-	logEnabledAPIs();
 	powerOnTestSensors();
-	logEnabledDisplays();
 
 	delay(50);
 
@@ -3104,37 +4047,55 @@ void setup()
 
 	if (cfg::npm_read)
 	{
-		last_display_millis_oled = starttime_NPM = starttime;
 		last_display_millis_matrix = starttime_NPM = starttime;
 	}
 
 	if (cfg::sds_read)
 	{
-		last_display_millis_oled = starttime_SDS = starttime;
 		last_display_millis_matrix = starttime_SDS = starttime;
 	}
 
 	if (cfg::mhz16_read)
 	{
-		last_display_millis_oled = starttime_MHZ16 = starttime;
 		last_display_millis_matrix = starttime_MHZ16 = starttime;
 	}
 
 	if (cfg::mhz19_read)
 	{
-		last_display_millis_oled = starttime_MHZ19 = starttime;
 		last_display_millis_matrix = starttime_MHZ19 = starttime;
 	}
 	if (cfg::ccs811_read)
 	{
-		last_display_millis_oled = starttime_CCS811 = starttime;
 		last_display_millis_matrix = starttime_CCS811 = starttime;
+	}
+
+	if (cfg::enveano2_read)
+	{
+		last_display_millis_matrix = starttime_Cairsens = starttime;
 	}
 
 	if (cfg::display_forecast)
 	{
-		forecast_selector = 0; //initialisation after first LoRaWAN payload
+		forecast_selector = 0; 
 	}
+
+
+	if (cfg::has_sdcard && sdcard_found)  //ON A BESOIN  DE RECEVOIR L'HEURE  AJOUTER RTC?
+		{
+			// coordinates = true;
+			listDir(SD, "/", 0);
+			file_name = String("/") + String(GPSdata.year) + String("_") + String(GPSdata.month) + String("_") + String(GPSdata.day) + String("_") + String(GPSdata.hour) + String("_") + String(GPSdata.minute) + String("_") + String(GPSdata.second) + String(".csv");
+			writeFile(SD, file_name.c_str(), "");
+			appendFile(SD, file_name.c_str(), "Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
+			Debug.println("Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
+			file_created = true;
+		}else
+		{
+			Debug.println("Can't create file!");
+		}
+
+
+
 
 	Debug.printf("End of void setup()\n");
 	time_end_setup = millis();
@@ -3216,6 +4177,15 @@ void loop()
 		}
 	}
 
+	if (cfg::enveano2_read)
+	{
+		if ((msSince(starttime_Cairsens) > SAMPLETIME_Cairsens_MS && no2_val_count < 11) || send_now)
+		{
+			starttime_Cairsens = act_milli;
+			fetchSensorCairsens(result_Cairsens);
+		}
+	}
+
 	if ((msSince(last_display_millis_matrix) > DISPLAY_UPDATE_INTERVAL_MS) && (cfg::has_matrix))
 	{
 		display_values_matrix();
@@ -3290,6 +4260,11 @@ void loop()
 		if (cfg::ccs811_read && (!ccs811_init_failed))
 		{
 			data += result_CCS811;
+		}
+
+		if (cfg::enveano2_read)
+		{
+			data += result_Cairsens;
 		}
 
 		add_Value2Json(data, F("samples"), String(sample_count));

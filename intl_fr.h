@@ -1,7 +1,6 @@
 #define INTL_LANG "FR"
-#define INTL_PM_SENSOR "Station de mesure ModuleAir v2"
+#define INTL_PM_SENSOR "Station de mesure ModuleAir v3"
 const char INTL_CONFIGURATION[] PROGMEM = "Configuration";
-#define INTL_WIFI_SETTINGS "Paramètres WiFi"
 #define INTL_WIFI_NETWORKS "Chargement des réseaux wifi ..."
 #define INTL_LANGUAGE "Langage"
 const char INTL_NO_NETWORKS[] PROGMEM =  "Pas de réseau wifi";
@@ -9,10 +8,15 @@ const char INTL_NETWORKS_FOUND[] PROGMEM = "Réseaux détectés: ";
 const char INTL_AB_HIER_NUR_ANDERN[] PROGMEM = "Paramètres avancés (seulement si vous savez ce que vous faites)";
 const char INTL_SAVE[] PROGMEM = "Enregistrer";
 const char INTL_SENSORS[] PROGMEM = "Capteurs";
+const char INTL_APIS[] PROGMEM = "APIs";
+const char INTL_DATE_TIME[] PROGMEM = "Date/Heure";
+const char INTL_RGPD[] PROGMEM = "RGPD";
+const char INTL_RGPD_ACCEPT[] PROGMEM = "Lu et approuvé";
 const char INTL_PM_SENSORS[] PROGMEM = "Capteurs de particules fines";
 const char INTL_THP_SENSORS[] PROGMEM = "Thermomètres, hygromètres, baromètres";
 const char INTL_CO2_SENSORS[] PROGMEM = "Capteurs CO2";
 const char INTL_VOC_SENSORS[] PROGMEM = "Capteurs COV";
+const char INTL_NO2_SENSORS[] PROGMEM = "Capteurs NO2";
 const char INTL_MORE_SENSORS[] PROGMEM = "Autres capteurs";
 const char INTL_LOGOS[] PROGMEM = "Logos";
 const char INTL_SDS011[] PROGMEM = "SDS011";
@@ -25,10 +29,12 @@ const char INTL_NEO6M[] PROGMEM = "GPS (NEO 6M)";
 const char INTL_MHZ16[] PROGMEM = "Sonde MH-Z16";
 const char INTL_MHZ19[] PROGMEM = "Sonde MH-Z19";
 const char INTL_CCS811[] PROGMEM = "Sonde CJMCU-811";
+const char INTL_ENVEANO2[] PROGMEM = "Sonde Envea Cairsens NO2";
 const char INTL_BASICAUTH[] PROGMEM = "Activer BasicAuth";
 #define INTL_REPORT_ISSUE "Signaler un problème"
 const char INTL_FS_WIFI_DESCRIPTION[] PROGMEM = "Nom du capteur wifi en mode de configuration";
 const char INTL_FS_WIFI_NAME[] PROGMEM = "Nom";
+const char INTL_WIFI_SETTINGS[] PROGMEM = "Paramètres Wifi";
 const char INTL_LORA_SETTINGS[] PROGMEM = "Paramètres LoRa";
 const char INTL_MORE_SETTINGS[] PROGMEM = "Autres paramètres";
 const char INTL_SCREENS[] PROGMEM = "Écrans";
@@ -73,12 +79,14 @@ const char INTL_DEVICE_STATUS[] PROGMEM = "Etat de l'appareil";
 #define INTL_CANCEL "Annuler"
 #define INTL_REALLY_RESTART_SENSOR "Voulez-vous vraiment redémarrer le capteur?"
 #define INTL_RESTART "Redémarrer"
+#define INTL_SET_TIME "Régler date/heure"
 const char INTL_SAVE_AND_RESTART[] PROGMEM = "Sauvegarder et redémarrer";
 #define INTL_ONLINE_CONFIG "Configuration en ligne"
 const char INTL_ALLOW[] PROGMEM = "Autoriser";
 #define INTL_FIRMWARE "Firmware"
 #define INTL_DISPLAY "Affichage"
 #define INTL_LOCATION "Position"
+#define INTL_CURRENT_TIME "Heure UTC"
 const char INTL_DEBUG_SETTING_TO[] PROGMEM = "Paramètres de débogage";
 #define INTL_NONE "aucun"
 #define INTL_ERROR "erreur"
@@ -99,6 +107,7 @@ const char INTL_PRESSURE[] PROGMEM = "Pression atmosphérique";
 const char INTL_DEW_POINT[] PROGMEM = "Point de rosée";
 const char INTL_CO2[] PROGMEM = "Concentration CO2";
 const char INTL_VOC[] PROGMEM = "Concentration COV";
+const char INTL_NO2[] PROGMEM = "Concentration NO2";
 const char INTL_LATITUDE[] PROGMEM = "Latitude";
 const char INTL_LONGITUDE[] PROGMEM = "Longitude";
 const char INTL_ALTITUDE[] PROGMEM = "Altitude";

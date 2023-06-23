@@ -12,6 +12,7 @@ const char DBG_TXT_HUMIDITY[] PROGMEM = "Humidity (%): ";
 const char DBG_TXT_PRESSURE[] PROGMEM = "Pressure (Pa): ";
 const char DBG_TXT_CO2PPM[] PROGMEM = "CO₂ (ppm): ";
 const char DBG_TXT_VOCPPB[] PROGMEM = "VOC (ppb): ";
+const char DBG_TXT_NO2PPB[] PROGMEM = "NO2 (µg/m³): ";
 const char DBG_TXT_START_READING[] PROGMEM = "R/ ";
 const char DBG_TXT_END_READING[] PROGMEM = "/R ";
 const char DBG_TXT_CHECKSUM_IS[] PROGMEM = "Checksum is: ";
@@ -35,6 +36,7 @@ const char SENSORS_BMP280[] PROGMEM = "BMP280";
 const char SENSORS_CCS811[] PROGMEM = "CJMCU-811";
 const char SENSORS_MHZ16[] PROGMEM = "MH-Z16";
 const char SENSORS_MHZ19[] PROGMEM = "MH-Z19";
+const char SENSORS_ENVEANO2[] PROGMEM = "Cairsens NO2";
 
 
 const char WEB_PAGE_HEADER[] PROGMEM = "<!DOCTYPE html><html lang='" INTL_LANG "'>\
@@ -61,8 +63,8 @@ input[type=submit]:hover{background:#d44}\
 .panels{min-height:200px;overflow:hidden;padding:20px;border:2px solid #438DBF;margin-bottom:1em;}\
 .radio{display:none}.panel{display:none}\
 .canvas{min-height:118px;background:#438DBF;margin-bottom:20px;}\
-#r6:checked~.panels>#panel6,#r5:checked~.panels>#panel5,#r4:checked~.panels>#panel4,#r1:checked~.panels>#panel1,#r3:checked~.panels>#panel3,#r2:checked~.panels>#panel2{display:block}\
-#r6:checked~.tabs>#tab6,#r5:checked~.tabs>#tab5,#r4:checked~.tabs>#tab4,#r1:checked~.tabs>#tab1,#r3:checked~.tabs>#tab3,#r2:checked~.tabs>#tab2{background:#438DBF;color:#fff}";
+#r7:checked~.panels>#panel7,#r6:checked~.panels>#panel6,#r5:checked~.panels>#panel5,#r4:checked~.panels>#panel4,#r3:checked~.panels>#panel3,#r2:checked~.panels>#panel2,#r1:checked~.panels>#panel1{display:block}\
+#r7:checked~.tabs>#tab7,#r6:checked~.tabs>#tab6,#r5:checked~.tabs>#tab5,#r4:checked~.tabs>#tab4,#r3:checked~.tabs>#tab3,#r2:checked~.tabs>#tab2,#r1:checked~.tabs>#tab1{background:#438DBF;color:#fff}";
 
 #define STATIC_PREFIX "/" INTL_LANG "_s1"
 
@@ -130,6 +132,7 @@ const char WEB_BR_FORM[] PROGMEM = "<br/></form>";
 const char WEB_BR_LF_B[] PROGMEM = "<br/>\n<b>";
 const char WEB_LF_B[] PROGMEM = "\n<b>";
 const char WEB_CSV[] PROGMEM = "CSV";
+const char WEB_SD[] PROGMEM = "SD";
 const char WEB_MADAVI[] PROGMEM = "<a target='_blank' href='https://www.madavi.de/ok-lab-stuttgart/'>Madavi.de</a>";
 const char WEB_SENSORCOMMUNITY[] PROGMEM = "<a target='_blank' href='https://archive.sensor.community/00disclamer.md'>Sensor.Community</a>";
 const char WEB_HTTPS[] PROGMEM = "HTTPS";

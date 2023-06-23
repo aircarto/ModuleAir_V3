@@ -46,6 +46,7 @@ enum ConfigShapeId {
 	Config_mhz16_read,
 	Config_mhz19_read,
 	Config_ccs811_read,
+	Config_enveano2_read,
 	Config_latitude,
 	Config_longitude,
 	Config_send2dusti,
@@ -79,6 +80,7 @@ enum ConfigShapeId {
 	Config_has_sdcard,
 	Config_has_ethernet,
 	Config_utc_offset,
+	Config_rgpd,
 };
 static constexpr char CFG_KEY_HAS_WIFI[] PROGMEM = "has_wifi";
 static constexpr char CFG_KEY_HAS_LORA[] PROGMEM = "has_lora";
@@ -100,6 +102,7 @@ static constexpr char CFG_KEY_HEIGHT_ABOVE_SEALEVEL[] PROGMEM = "height_above_se
 static constexpr char CFG_KEY_MHZ16_READ[] PROGMEM = "mhz16_read";
 static constexpr char CFG_KEY_MHZ19_READ[] PROGMEM = "mhz19_read";
 static constexpr char CFG_KEY_CCS811_READ[] PROGMEM = "ccs811_read";
+static constexpr char CFG_KEY_ENVEANO2_READ[] PROGMEM = "enveano2_read";
 static constexpr char CFG_KEY_LATITUDE[] PROGMEM = "latitude";
 static constexpr char CFG_KEY_LONGITUDE[] PROGMEM = "longitude";
 static constexpr char CFG_KEY_SEND2DUSTI[] PROGMEM = "send2dusti";
@@ -133,6 +136,7 @@ static constexpr char CFG_KEY_SSL_CUSTOM2[] PROGMEM = "ssl_custom2";
 static constexpr char CFG_KEY_HAS_SDCARD[] PROGMEM = "has_sdcard";
 static constexpr char CFG_KEY_HAS_ETHERNET[] PROGMEM = "has_ethernet";
 static constexpr char CFG_KEY_UTC_OFFSET[] PROGMEM = "utc_offset";
+static constexpr char CFG_KEY_RGPD[] PROGMEM = "rgpd";
 static constexpr ConfigShapeEntry configShape[] PROGMEM = {
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_WIFI, &cfg::has_wifi },
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_LORA, &cfg::has_lora },
@@ -154,6 +158,7 @@ static constexpr ConfigShapeEntry configShape[] PROGMEM = {
 	{ Config_Type_Bool, 0, CFG_KEY_MHZ16_READ, &cfg::mhz16_read },
 	{ Config_Type_Bool, 0, CFG_KEY_MHZ19_READ, &cfg::mhz19_read },
 	{ Config_Type_Bool, 0, CFG_KEY_CCS811_READ, &cfg::ccs811_read },
+	{ Config_Type_Bool, 0, CFG_KEY_ENVEANO2_READ, &cfg::enveano2_read },
 	{ Config_Type_String, sizeof(cfg::latitude)-1, CFG_KEY_LATITUDE, cfg::latitude },
 	{ Config_Type_String, sizeof(cfg::longitude)-1, CFG_KEY_LONGITUDE, cfg::longitude },
 	{ Config_Type_Bool, 0, CFG_KEY_SEND2DUSTI, &cfg::send2dusti },
@@ -187,4 +192,5 @@ static constexpr ConfigShapeEntry configShape[] PROGMEM = {
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_SDCARD, &cfg::has_sdcard },
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_ETHERNET, &cfg::has_ethernet },
 	{ Config_Type_UInt, 0, CFG_KEY_UTC_OFFSET, &cfg::utc_offset },
+	{ Config_Type_Bool, 0, CFG_KEY_RGPD, &cfg::rgpd },
 };

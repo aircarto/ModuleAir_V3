@@ -14,6 +14,7 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 #include <Wire.h>
 #include "./WirePacker.h"
 #include <Ethernet.h>
+#include <RTClib.h>
 
 /*****************************************************************
  * IMPORTANT                                          *
@@ -34,17 +35,16 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 
 // extern SPIClass SPI_H; en bas
 
-//Dans PXMatrix   ///REVOIR ICI POUR ETHERNET
+//Dans Ethernet.h   ///REVOIR ICI POUR ETHERNET
 
-//On remplace tous les SPI. par SPI_H.
+// On remplace tous les SPI. par SPI_H.
 
-//On définit les pins:
+//Normalement les pins sont les suivants:
 
-// // HW SPI PINS
-// #define SPI_BUS_CLK 14
-// #define SPI_BUS_MOSI 13
-// #define SPI_BUS_MISO 12
-// #define SPI_BUS_SS 4
+// _sck = (_spi_num == VSPI) ? SCK : 14;
+// _miso = (_spi_num == VSPI) ? MISO : 12;
+// _mosi = (_spi_num == VSPI) ? MOSI : 13;
+// _ss = (_spi_num == VSPI) ? SS : 15;
 
 //on remplace la glcdfont.c original dans AdaFruitGFX => mod dans le dossier Fonts
 
@@ -182,6 +182,8 @@ namespace cfg
 	char user_custom2[LEN_USER_CUSTOM2] = USER_CUSTOM2;
 	char pwd_custom2[LEN_CFG_PASSWORD] = PWD_CUSTOM2;
 
+	bool rgpd = RGPD;
+
 	// First load
 	void initNonTrivials(const char *id)
 	{
@@ -266,6 +268,7 @@ struct gps
 	String longitude;
 };
 
+
 /*****************************************************************
  * Forecast Atmosud                                              *
  *****************************************************************/
@@ -290,6 +293,13 @@ uint8_t forecast_selector;
 /*****************************************************************
  * Time                                       *
  *****************************************************************/
+
+//RTC
+
+RTC_DS3231 rtc;
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+DateTime now; //get time
 
 // time management varialbles
 bool send_now = false;
@@ -363,6 +373,10 @@ float last_value_CCS811 = -1.0;
 uint32_t ccs811_sum = 0;
 uint16_t ccs811_val_count = 0;
 
+float last_value_no2 = -1.0;
+uint32_t no2_sum = 0;
+uint16_t no2_val_count = 0;
+
 String last_data_string;
 int last_signal_strength;
 int last_disconnect_reason;
@@ -379,6 +393,7 @@ unsigned long MHZ16_error_count;
 unsigned long MHZ19_error_count;
 unsigned long CCS811_error_count;
 unsigned long WiFi_error_count;
+unsigned long Cairsens_error_count;
 
 unsigned long last_page_load = millis();
 
@@ -894,9 +909,12 @@ static void webserver_config_send_body_get(String &page_content)
 					  "<input class='radio' id='r3' name='group' type='radio'>"
 					  "<input class='radio' id='r4' name='group' type='radio'>"
 					  "<input class='radio' id='r5' name='group' type='radio'>"
-					  //   "<input class='radio' id='r6' name='group' type='radio'>"
+					  "<input class='radio' id='r6' name='group' type='radio'>"
+					  "<input class='radio' id='r7' name='group' type='radio'>"
 					  "<div class='tabs'>"
-					  "<label class='tab' id='tab1' for='r1'>" INTL_WIFI_SETTINGS "</label>"
+					  "<label class='tab' id='tab1' for='r1'>");
+	page_content += FPSTR(INTL_WIFI_SETTINGS);
+	page_content += F("</label>"
 					  "<label class='tab' id='tab2' for='r2'>");
 	page_content += FPSTR(INTL_LORA_SETTINGS);
 	page_content += F("</label>"
@@ -905,13 +923,17 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += F("</label>"
 					  "<label class='tab' id='tab4' for='r4'>");
 	page_content += FPSTR(INTL_SENSORS);
-	page_content += F(
-		"</label>"
-		"<label class='tab' id='tab5' for='r5'>APIs");
-	// page_content += F("</label>"
-	// 				  "<label class='tab' id='tab6' for='r6'>");
-	// page_content += FPSTR(INTL_SCREENS);
-	page_content += F("</label></div><div class='panels'>"
+	page_content += F("</label>"
+					  "<label class='tab' id='tab5' for='r5'>");
+	page_content += FPSTR(INTL_APIS);
+	page_content += F("</label>"
+					  "<label class='tab' id='tab6' for='r6'>");
+	page_content += FPSTR(INTL_DATE_TIME);
+	page_content += F("</label>"
+					  "<label class='tab' id='tab7' for='r7'>");
+	page_content += FPSTR(INTL_RGPD);
+	page_content += F("</label></div>"
+					  "<div class='panels'>"
 					  "<div class='panel' id='panel1'>");
 
 	if (wificonfig_loop)
@@ -969,7 +991,6 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 	server.sendContent(page_content);
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(3));
-
 	page_content += F("<b>" INTL_LOCATION "</b>&nbsp;");
 	page_content += FPSTR(TABLE_TAG_OPEN);
 	add_form_input(page_content, Config_latitude, FPSTR(INTL_LATITUDE), LEN_GEOCOORDINATES - 1);
@@ -994,11 +1015,6 @@ static void webserver_config_send_body_get(String &page_content)
 
 	server.sendContent(page_content);
 
-	// page_content = FPSTR(WEB_BR_LF_B);
-	// page_content += F(INTL_ONLINE_CONFIG "</b>&nbsp;");
-	// add_form_checkbox(Config_online_config, FPSTR(INTL_ALLOW));
-	// server.sendContent(page_content);
-
 	page_content = FPSTR(WEB_BR_LF_B);
 	page_content += F(INTL_FIRMWARE "</b>&nbsp;");
 
@@ -1014,7 +1030,6 @@ static void webserver_config_send_body_get(String &page_content)
 
 	server.sendContent(page_content);
 
-	//ICI
 
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(4));
 
@@ -1023,7 +1038,6 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += FPSTR(WEB_B_BR);
 	add_form_checkbox_sensor(Config_sds_read, FPSTR(INTL_SDS011));
 	add_form_checkbox_sensor(Config_npm_read, FPSTR(INTL_NPM));
-	// add_form_checkbox_sensor(Config_npm_fulltime, FPSTR(INTL_NPM_FULLTIME));
 
 	// Paginate page after ~ 1500 Bytes  //ATTENTION RYTHME PAGINATION !
 	server.sendContent(page_content);
@@ -1056,6 +1070,14 @@ static void webserver_config_send_body_get(String &page_content)
 
 	add_form_checkbox_sensor(Config_ccs811_read, FPSTR(INTL_CCS811));
 
+
+	page_content += FPSTR(WEB_BR_LF_B);
+	page_content += FPSTR(INTL_NO2_SENSORS);
+	page_content += FPSTR(WEB_B_BR);
+
+	add_form_checkbox_sensor(Config_enveano2_read, FPSTR(INTL_ENVEANO2));
+
+
 	// Paginate page after ~ 1500 Bytes
 	server.sendContent(page_content);
 	//page_content = emptyString;
@@ -1082,6 +1104,7 @@ static void webserver_config_send_body_get(String &page_content)
 	// page_content += FPSTR("<br>");
 
 	add_form_checkbox(Config_send2csv, FPSTR(WEB_CSV));
+	add_form_checkbox(Config_has_sdcard, FPSTR(WEB_SD));
 
 	server.sendContent(page_content);
 	page_content = emptyString;
@@ -1117,11 +1140,104 @@ static void webserver_config_send_body_get(String &page_content)
 	add_form_input(page_content, Config_pwd_custom2, FPSTR(INTL_PASSWORD2), LEN_CFG_PASSWORD2 - 1);
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 
-	//server.sendContent(page_content);
-	// page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(6));
-	// page_content += FPSTR("<b>");
-	// page_content += FPSTR(INTL_LOGOS);
-	// page_content += FPSTR(WEB_B_BR);
+	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(6));
+	page_content += F("<b>" INTL_CURRENT_TIME "</b>&nbsp;");
+	page_content += F("<br/><br/>");
+
+	now = rtc.now();
+	String current_time;
+	
+	current_time += String(now.year(), DEC);
+	current_time += "-";
+
+	if (now.month() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now.month(), DEC);
+	current_time += "-";
+
+	if (now.day() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now.day(),DEC);
+
+	current_time += "T";
+	if (now.hour() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now.hour(), DEC);
+	current_time += ":";
+
+	if (now.minute() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now.minute(), DEC);
+	current_time += ":";
+
+	if (now.second() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now.second());
+	current_time += "Z";
+
+	page_content += current_time;	
+	page_content += F("<br/><br/>");
+
+	page_content += F("<table><tr><td><form method='POST' action'/settime'>"
+	"<input type='submit' class='s_red' name='submit' value='" INTL_SET_TIME "'/>"
+	"</form></td></tr></table>");
+
+	page_content += FPSTR(TABLE_TAG_OPEN);
+	page_content += F("<tr>"
+          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
+          "<td style='width:{l}em'>"
+          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "</td></tr>"
+		  "<tr>"
+          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
+          "<td style='width:{l}em'>"
+          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "</td></tr>"
+		  "<tr>"
+          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
+          "<td style='width:{l}em'>"
+          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "</td></tr>"
+		  "<tr>"
+          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
+          "<td style='width:{l}em'>"
+          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "</td></tr>"
+		  "<tr>"
+          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
+          "<td style='width:{l}em'>"
+          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "</td></tr>"
+		  "<tr>"
+          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
+          "<td style='width:{l}em'>"
+          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "</td></tr>")
+
+
+	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
+
+	
+
+	server.sendContent(page_content);
+	page_content = emptyString;
+
+	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(7));
+		//AJOUTER TEXTE, LIEN etc.
+	add_form_checkbox(Config_rgpd, FPSTR(INTL_RGPD_ACCEPT));
+
+	// server.sendContent(page_content);
+	// page_content = emptyString;
 
 	page_content += F("</div></div>");
 	page_content += form_submit(FPSTR(INTL_SAVE_AND_RESTART));
@@ -1392,6 +1508,11 @@ static void webserver_values()
 		add_table_row_from_value(page_content, sensor, param, check_display_value(value, -1, 1, 0).substring(0, check_display_value(value, -1, 1, 0).indexOf(".")), "ppb"); //remove after .
 	};
 
+	auto add_table_no2_value = [&page_content](const __FlashStringHelper *sensor, const __FlashStringHelper *param, const float &value)
+	{
+		add_table_row_from_value(page_content, sensor, param, check_display_value(value, -1, 1, 0).substring(0, check_display_value(value, -1, 1, 0).indexOf(".")), "μg/m3");
+	};
+
 	auto add_table_value = [&page_content](const __FlashStringHelper *sensor, const __FlashStringHelper *param, const String &value, const String &unit)
 	{
 		add_table_row_from_value(page_content, sensor, param, value, unit);
@@ -1453,6 +1574,13 @@ static void webserver_values()
 	{
 		const char *const sensor_name = SENSORS_CCS811;
 		add_table_voc_value(FPSTR(sensor_name), FPSTR(INTL_VOC), last_value_CCS811);
+		page_content += FPSTR(EMPTY_ROW);
+	}
+
+	if (cfg::enveano2_read)
+	{
+		const char *const sensor_name = SENSORS_ENVEANO2;
+		add_table_no2_value(FPSTR(sensor_name), FPSTR(INTL_NO2), last_value_no2);
 		page_content += FPSTR(EMPTY_ROW);
 	}
 
@@ -1556,6 +1684,12 @@ static void webserver_status()
 	{
 		add_table_row_from_value(page_content, FPSTR(SENSORS_CCS811), String(CCS811_error_count));
 	}
+
+	if (cfg::enveano2_read)
+	{
+		add_table_row_from_value(page_content, FPSTR(SENSORS_ENVEANO2), String(Cairsens_error_count));
+	}
+
 	server.sendContent(page_content);
 	page_content = emptyString;
 
@@ -1729,7 +1863,6 @@ static void webserver_reset()
 	}
 	else
 	{
-
 		sensor_restart();
 	}
 	end_html_page(page_content);
@@ -2016,6 +2149,7 @@ static void wifiConfig()
 	debug_outln_info_bool(F("MHZ16: "), cfg::mhz16_read);
 	debug_outln_info_bool(F("MHZ19: "), cfg::mhz19_read);
 	debug_outln_info_bool(F("CCS811: "), cfg::ccs811_read);
+	debug_outln_info_bool(F("Cairsens NO2: "), cfg::enveano2_read);
 	debug_outln_info(FPSTR(DBG_TXT_SEP));
 	debug_outln_info_bool(F("SensorCommunity: "), cfg::send2dusti);
 	debug_outln_info_bool(F("Madavi: "), cfg::send2madavi);
@@ -2796,14 +2930,12 @@ const unsigned TX_INTERVAL = (cfg::sending_intervall_ms) / 1000;
 
 static osjob_t sendjob;
 
-#if defined(ARDUINO_ESP32_DEV) and defined(KIT_C)
 const lmic_pinmap lmic_pins = {
 	.nss = D5, //AUTRE  //D5 origine
 	.rxtx = LMIC_UNUSED_PIN,
 	.rst = D0, //14 origine ou d12
 	.dio = {D26, D35, D34},
 };
-#endif
 
 void ToByteArray()
 {
@@ -3264,6 +3396,8 @@ void setup()
 	// Debug.println(spiffs_matrix);
 
 	Wire.begin(I2C_PIN_SDA, I2C_PIN_SCL);
+	Wire1.begin(I2C_PIN_SDA_2, I2C_PIN_SCL_2); // For RTC
+
 	lorachip = loratest(D26); // test if the LoRa module is connected when LoRaWAN option checked, otherwise freeze...
 	Debug.print("Lora chip connected:");
 	Debug.println(lorachip);
@@ -3362,6 +3496,13 @@ void setup()
 	Debug.printf("End of void setup()\n");
 	time_end_setup = millis();
 
+
+	if (! rtc.begin()) { //ATTENTION FORCER Wire1 dans la lib!!!
+	Debug.println("Couldn't find RTC");
+	}
+
+	//rtc.adjust(DateTime(2023, 1, 1, 0, 0, 0));  //FORM SECONDAR!!!! ou bin fom qui push le time 1 fois.
+
 	String cfgName(F("/config.json"));
 	File configFile = SPIFFS.open(cfgName, "r");
 	
@@ -3385,6 +3526,38 @@ void setup()
 
 void loop()
 {
+
+
+now = rtc.now();
+Debug.print(now.year(), DEC);
+Debug.print("-");
+Debug.print(now.month(), DEC);
+Debug.print("-");
+Debug.print(now.day(), DEC);
+Debug.print("-");
+Debug.print(daysOfTheWeek[now.dayOfTheWeek()]);
+Debug.print("/");
+Debug.print(now.hour(), DEC);
+Debug.print(":");
+Debug.print(now.minute(), DEC);
+Debug.print(":");
+Debug.println(now.second(), DEC);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	unsigned sum_send_time = 0;
 
 	act_micro = micros();

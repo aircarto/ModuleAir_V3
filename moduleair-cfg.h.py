@@ -21,6 +21,7 @@ String		height_above_sealevel
 Bool		mhz16_read
 Bool		mhz19_read
 Bool		ccs811_read
+Bool		enveano2_read
 String		latitude
 String		longitude
 Bool		send2dusti
@@ -54,6 +55,7 @@ Bool		ssl_custom2
 Bool        has_sdcard
 Bool        has_ethernet
 UInt        utc_offset
+Bool        rgpd
 """
 
 with open("moduleair-cfg.h", "w") as h:

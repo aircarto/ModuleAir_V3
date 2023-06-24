@@ -131,7 +131,8 @@ String delayToString(unsigned time_ms) {
  *****************************************************************/
 String check_display_value(double value, double undef, uint8_t len, uint8_t str_len) {
 	RESERVE_STRING(s, 15);
-	s = (value != undef ? String(value, len) : String("-"));
+	// s = (value != undef ? String(value, len) : String("-"));
+	s = (value != undef ? String(value, (int)len) : String("-"));
 	while (s.length() < str_len) {
 		s = " " + s;
 	}
@@ -448,27 +449,6 @@ void NPM_data_reader(uint8_t data[], size_t size)
 		debug_outln(state, DEBUG_MAX_INFO);
 		return state;
 	}
-
-	const __FlashStringHelper *loggerDescription(unsigned i)
-	{
-		const __FlashStringHelper *logger = nullptr;
-		switch (i)
-		{
-        case LoggerSensorCommunity:
-            logger = F("Sensor.Community");
-            break;
-        case LoggerMadavi:
-            logger = F("Madavi.de");
-            break;
-        case LoggerCustom:
-            logger = F("AirCarto");
-            break;
-        case LoggerCustom2:
-            logger = F("AtmoSud");
-            break;
-    }
-    return logger;
-}
 
 /*****************************************************************
  * helper to see if a given string is numeric                    *

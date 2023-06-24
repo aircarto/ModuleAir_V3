@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
+#include <SoftwareSerial.h>
 #include <HardwareSerial.h>
 #include <esp32/sha.h>
 #include <freertos/queue.h>
@@ -117,7 +118,5 @@ extern void NPM_data_reader(uint8_t data[], size_t size);
 extern String NPM_state(uint8_t bytedata);
 
 extern bool isNumeric(const String& str);
-
-extern const __FlashStringHelper* loggerDescription(unsigned i);
 
 #endif

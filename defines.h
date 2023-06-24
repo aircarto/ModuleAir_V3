@@ -31,6 +31,8 @@
 #define LEN_USER_CUSTOM2 65
 #define MAX_PORT_DIGITS2 5
 
+#define LEN_ID 14
+
 // define debug levels
 #define DEBUG_ERROR 1
 #define DEBUG_WARNING 2

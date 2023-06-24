@@ -36,10 +36,12 @@ const char INTL_FS_WIFI_DESCRIPTION[] PROGMEM = "Nom du capteur wifi en mode de 
 const char INTL_FS_WIFI_NAME[] PROGMEM = "Nom";
 const char INTL_WIFI_SETTINGS[] PROGMEM = "Paramètres Wifi";
 const char INTL_LORA_SETTINGS[] PROGMEM = "Paramètres LoRa";
+const char INTL_ETHERNET_SETTINGS[] PROGMEM = "Paramètres Ethernet";
 const char INTL_MORE_SETTINGS[] PROGMEM = "Autres paramètres";
 const char INTL_SCREENS[] PROGMEM = "Écrans";
 const char INTL_SSD1306[] PROGMEM = "OLED SSD1306";
 const char INTL_MATRIX[] PROGMEM = "Matrice RGB 64x32";
+const char INTL_SHOW_NEBULEAIR[] PROGMEM = "Afficher les valeurs du NebuleAir";
 const char INTL_DISPLAY_MEASURES[] PROGMEM = "Afficher les mesures des capteurs";
 const char INTL_DISPLAY_FORECAST[] PROGMEM = "Afficher les prévisions Atmosud";
 const char INTL_DISPLAY_WIFI_INFO[] PROGMEM = "Afficher les informations wifi";
@@ -85,8 +87,10 @@ const char INTL_SAVE_AND_RESTART[] PROGMEM = "Sauvegarder et redémarrer";
 const char INTL_ALLOW[] PROGMEM = "Autoriser";
 #define INTL_FIRMWARE "Firmware"
 #define INTL_DISPLAY "Affichage"
+#define INTL_NEBULEAIR "Mon NebuleAir"
 #define INTL_LOCATION "Position"
-#define INTL_CURRENT_TIME "Heure UTC"
+#define INTL_RTC_TIME "Heure module RTC"
+#define INTL_NTP_TIME "Heure module RTC"
 const char INTL_DEBUG_SETTING_TO[] PROGMEM = "Paramètres de débogage";
 #define INTL_NONE "aucun"
 #define INTL_ERROR "erreur"
@@ -112,6 +116,9 @@ const char INTL_LATITUDE[] PROGMEM = "Latitude";
 const char INTL_LONGITUDE[] PROGMEM = "Longitude";
 const char INTL_ALTITUDE[] PROGMEM = "Altitude";
 const char INTL_TIME_UTC[] PROGMEM = "Heure (UTC)";
+const char INTL_UTC_OFFSET[] PROGMEM = "Offset (UTC)";
+const char INTL_TIME_RTC[] PROGMEM = "Heure (module RTC)";
+const char INTL_ID_NEBULEAIR[] PROGMEM = "ID NebuleAir";
 const char INTL_SIGNAL_STRENGTH[] PROGMEM = "Force du signal";
 const char INTL_SIGNAL_QUALITY[] PROGMEM = "Qualité du signal";
 #define INTL_NUMBER_OF_MEASUREMENTS "Nombre de mesures"
@@ -122,6 +129,13 @@ const char INTL_SIGNAL_QUALITY[] PROGMEM = "Qualité du signal";
 const char INTL_LORA_EXPLANATION[] = "Copier/Coller les valeurs depuis la console Helium";
 const char INTL_LORA_ACTIVATION[] = "Activer la communication LoRaWAN";
 const char INTL_WIFI_ACTIVATION[] = "Activer la communication WiFi";
+const char INTL_ETHERNET_ACTIVATION[] = "Activer la communication Ethernet";
+#define INTL_YEAR "Année"
+#define INTL_MONTH "Mois"
+#define INTL_DAY "Jour"
+#define INTL_HOUR "Heures"
+#define INTL_MINUTE "Minutes"
+#define INTL_SECOND "Secondes"
 
 #include "./aircarto-logo-common.h"
 #include "./logos-custom.h"

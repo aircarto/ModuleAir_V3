@@ -56,6 +56,8 @@ Bool        has_sdcard
 Bool        has_ethernet
 UInt        utc_offset
 Bool        rgpd
+Bool        show_nebuleair
+String      id_nebuleair
 """
 
 with open("moduleair-cfg.h", "w") as h:

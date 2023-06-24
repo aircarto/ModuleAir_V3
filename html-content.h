@@ -55,16 +55,22 @@ td{vertical-align:top}\
 .wifi{background:0 0;color:#00f;padding:5px;display:inline;border:0;}\
 input[type=text]{width:100%}\
 input[type=password]{width:100%}\
-input[type=submit]{color:#fff;text-align:left;cursor:pointer;border-radius:5px;font-size:medium;background:#b33;padding:9px!important;width:100%;border-style:none}\
-input[type=submit]:hover{background:#d44}\
+input[type=submit][form=main]{color:#fff;text-align:left;cursor:pointer;border-radius:5px;font-size:medium;background:#b33;padding:9px!important;width:100%;border-style:none}\
+input[type=submit][form=main]:hover{background:#d44}\
+input[type=submit][form=secondar]{color:#fff;text-align:center;cursor:pointer;border-radius:5px;font-size:medium;background:#777;padding:3px!important;display:inline;border-style:none}\
+input[type=submit][form=secondar]:hover{background:#aaa}\
+input[type=submit][form=reset]{color:#fff;text-align:left;cursor:pointer;border-radius:5px;font-size:medium;background:#b33;padding:9px!important;width:100%;border-style:none}\
+input[type=submit][form=reset]:hover{background:#d44}\
+input[type=submit][form=remove]{color:#fff;text-align:left;cursor:pointer;border-radius:5px;font-size:medium;background:#b33;padding:9px!important;width:100%;border-style:none}\
+input[type=submit][form=remove]:hover{background:#d44}\
 .s_green{padding:9px !important;width:100%;border-style:none;background:#438DBF;color:#fff;text-align:left}\
 .tabs{display:flex;flex-direction:row;align-items:stretch;align-content:flex-end;justify-content:flex-start}\
 .tab{padding:10px 20px;display:inline-block;color:#333}\
 .panels{min-height:200px;overflow:hidden;padding:20px;border:2px solid #438DBF;margin-bottom:1em;}\
 .radio{display:none}.panel{display:none}\
 .canvas{min-height:118px;background:#438DBF;margin-bottom:20px;}\
-#r7:checked~.panels>#panel7,#r6:checked~.panels>#panel6,#r5:checked~.panels>#panel5,#r4:checked~.panels>#panel4,#r3:checked~.panels>#panel3,#r2:checked~.panels>#panel2,#r1:checked~.panels>#panel1{display:block}\
-#r7:checked~.tabs>#tab7,#r6:checked~.tabs>#tab6,#r5:checked~.tabs>#tab5,#r4:checked~.tabs>#tab4,#r3:checked~.tabs>#tab3,#r2:checked~.tabs>#tab2,#r1:checked~.tabs>#tab1{background:#438DBF;color:#fff}";
+#r8:checked~.panels>#panel8,#r7:checked~.panels>#panel7,#r6:checked~.panels>#panel6,#r5:checked~.panels>#panel5,#r4:checked~.panels>#panel4,#r3:checked~.panels>#panel3,#r2:checked~.panels>#panel2,#r1:checked~.panels>#panel1{display:block}\
+#r8:checked~.tabs>#tab8,#r7:checked~.tabs>#tab7,#r6:checked~.tabs>#tab6,#r5:checked~.tabs>#tab5,#r4:checked~.tabs>#tab4,#r3:checked~.tabs>#tab3,#r2:checked~.tabs>#tab2,#r1:checked~.tabs>#tab1{background:#438DBF;color:#fff}";
 
 #define STATIC_PREFIX "/" INTL_LANG "_s1"
 
@@ -109,13 +115,13 @@ function load_wifi_list(){var x=new XMLHttpRequest();x.open('GET','/wifi');x.onl
 </script>";
 
 const char WEB_REMOVE_CONFIG_CONTENT[] PROGMEM = "<h3>" INTL_CONFIGURATION_REALLY_DELETE "</h3>\
-<table><tr><td><form method='POST' action='/removeConfig'>\
-<input type='submit' class='s_red' name='submit' value='" INTL_DELETE "'/></form></td>\
+<table><tr><td><form id='remove' method='POST' action='/removeConfig'>\
+<input type='submit' form='remove' class='s_red' name='submit' value='" INTL_DELETE "'/></form></td>\
 <td><a class='b' href='/'>" INTL_CANCEL "</a></td></tr></table>";
 
 const char WEB_RESET_CONTENT[] PROGMEM = "<h3>" INTL_REALLY_RESTART_SENSOR "</h3>" \
-"<table><tr><td><form method='POST' action'/reset'>" \
-"<input type='submit' class='s_red' name='submit' value='" INTL_RESTART "'/>"\
+"<table><tr><td><form id='reset' method='POST' action'/reset'>" \
+"<input type='submit' form='reset' class='s_red' name='submit' value='" INTL_RESTART "'/>"\
 "</form></td><td><a class='b' href='/'>" INTL_CANCEL "</a></td></tr></table>";
 
 const char WEB_IOS_REDIRECT[] PROGMEM = "<html><body>Redirecting...\

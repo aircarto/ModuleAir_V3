@@ -182,6 +182,11 @@ namespace cfg
 	char user_custom2[LEN_USER_CUSTOM2] = USER_CUSTOM2;
 	char pwd_custom2[LEN_CFG_PASSWORD] = PWD_CUSTOM2;
 
+	// NebuleAir
+	bool show_nebuleair = SHOW_NEBULEAIR;
+	char id_nebuleair[LEN_ID] = ID_NEBULEAIR;
+
+
 	bool rgpd = RGPD;
 
 	// First load
@@ -201,6 +206,7 @@ namespace cfg
 		strcpy_P(url_custom2, URL_CUSTOM2);
 		strcpy_P(latitude, LATITUDE);
 		strcpy_P(longitude, LONGITUDE);
+		// strcpy_P(id_nebuleair, ID_NEBULEAIR);
 
 		if (!*fs_ssid)
 		{
@@ -300,7 +306,7 @@ RTC_DS3231 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 DateTime now; //get time
-
+DateTime now2;
 // time management varialbles
 bool send_now = false;
 unsigned long starttime;
@@ -647,31 +653,7 @@ static void createLoggerConfigs()
 	}
 }
 
-/*****************************************************************
- * dew point helper function                                     *
- *****************************************************************/
-static float dew_point(const float temperature, const float humidity)
-{
-	float dew_temp;
-	const float k2 = 17.62;
-	const float k3 = 243.12;
 
-	dew_temp = k3 * (((k2 * temperature) / (k3 + temperature)) + log(humidity / 100.0f)) / (((k2 * k3) / (k3 + temperature)) - log(humidity / 100.0f));
-
-	return dew_temp;
-}
-
-/*****************************************************************
- * Pressure at sea level function                                     *
- *****************************************************************/
-static float pressure_at_sealevel(const float temperature, const float pressure)
-{
-	float pressure_at_sealevel;
-
-	pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * readCorrectionOffset(cfg::height_above_sealevel)))), -5.255f);
-
-	return pressure_at_sealevel;
-}
 
 /*****************************************************************
  * html helper functions                                         *
@@ -719,7 +701,7 @@ static void add_form_input(String &page_content, const ConfigShapeId cfgid, cons
 	s = F("<tr>"
 		  "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
 		  "<td style='width:{l}em'>"
-		  "<input type='{t}' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+		  "<input form='main' type='{t}' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
 		  "</td></tr>");
 	String t_value;
 	ConfigShapeEntry c;
@@ -755,8 +737,8 @@ static String form_checkbox(const ConfigShapeId cfgid, const String &info, const
 {
 	RESERVE_STRING(s, MED_STR);
 	s = F("<label for='{n}'>"
-		  "<input type='checkbox' name='{n}' value='1' id='{n}' {c}/>"
-		  "<input type='hidden' name='{n}' value='0'/>"
+		  "<input form='main' type='checkbox' name='{n}' value='1' id='{n}' {c}/>"
+		  "<input form='main' type='hidden' name='{n}' value='0'/>"
 		  "{i}</label><br/>");
 	if (*configShape[cfgid].cfg_val.as_bool)
 	{
@@ -780,7 +762,7 @@ static String form_submit(const String &value)
 	String s = F("<tr>"
 				 "<td>&nbsp;</td>"
 				 "<td>"
-				 "<input type='submit' name='submit' value='{v}' />"
+				 "<input form='main' type='submit' name='submit' value='{v}' />"
 				 "</td>"
 				 "</tr>");
 	s.replace("{v}", value);
@@ -793,7 +775,7 @@ static String form_select_lang()
 	String s = F("<tr>"
 				 "<td>" INTL_LANGUAGE ":&nbsp;</td>"
 				 "<td>"
-				 "<select id='current_lang' name='current_lang'>"
+				 "<select form='main' id='current_lang' name='current_lang'>"
 				 "<option value='FR'>Français (FR)</option>"
 				 "<option value='EN'>English (EN)</option>"
 				 "</select>"
@@ -903,14 +885,15 @@ static void webserver_config_send_body_get(String &page_content)
 	};
 
 	debug_outln_info(F("begin webserver_config_body_get ..."));
-	page_content += F("<form method='POST' action='/config' style='width:100%;'>\n"
-					  "<input class='radio' id='r1' name='group' type='radio' checked>"
-					  "<input class='radio' id='r2' name='group' type='radio'>"
-					  "<input class='radio' id='r3' name='group' type='radio'>"
-					  "<input class='radio' id='r4' name='group' type='radio'>"
-					  "<input class='radio' id='r5' name='group' type='radio'>"
-					  "<input class='radio' id='r6' name='group' type='radio'>"
-					  "<input class='radio' id='r7' name='group' type='radio'>"
+	page_content += F("<form id='main' method='POST' action='/config' style='width:100%;'>\n"
+					  "<input form='main' class='radio' id='r1' name='group' type='radio' checked>"
+					  "<input form='main' class='radio' id='r2' name='group' type='radio'>"
+					  "<input form='main' class='radio' id='r3' name='group' type='radio'>"
+					  "<input form='main' class='radio' id='r4' name='group' type='radio'>"
+					  "<input form='main' class='radio' id='r5' name='group' type='radio'>"
+					  "<input form='main' class='radio' id='r6' name='group' type='radio'>"
+					  "<input form='main' class='radio' id='r7' name='group' type='radio'>"
+					  "<input form='main' class='radio' id='r8' name='group' type='radio'>"
 					  "<div class='tabs'>"
 					  "<label class='tab' id='tab1' for='r1'>");
 	page_content += FPSTR(INTL_WIFI_SETTINGS);
@@ -919,18 +902,21 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += FPSTR(INTL_LORA_SETTINGS);
 	page_content += F("</label>"
 					  "<label class='tab' id='tab3' for='r3'>");
-	page_content += FPSTR(INTL_MORE_SETTINGS);
+	page_content += FPSTR(INTL_ETHERNET_SETTINGS);
 	page_content += F("</label>"
 					  "<label class='tab' id='tab4' for='r4'>");
-	page_content += FPSTR(INTL_SENSORS);
+	page_content += FPSTR(INTL_MORE_SETTINGS);
 	page_content += F("</label>"
 					  "<label class='tab' id='tab5' for='r5'>");
-	page_content += FPSTR(INTL_APIS);
+	page_content += FPSTR(INTL_SENSORS);
 	page_content += F("</label>"
 					  "<label class='tab' id='tab6' for='r6'>");
-	page_content += FPSTR(INTL_DATE_TIME);
+	page_content += FPSTR(INTL_APIS);
 	page_content += F("</label>"
 					  "<label class='tab' id='tab7' for='r7'>");
+	page_content += FPSTR(INTL_DATE_TIME);
+	page_content += F("</label>"
+					  "<label class='tab' id='tab8' for='r8'>");
 	page_content += FPSTR(INTL_RGPD);
 	page_content += F("</label></div>"
 					  "<div class='panels'>"
@@ -990,7 +976,12 @@ static void webserver_config_send_body_get(String &page_content)
 	add_form_input(page_content, Config_appkey, FPSTR("APPKEY"), LEN_APPKEY - 1);
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 	server.sendContent(page_content);
+
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(3));
+	add_form_checkbox(Config_has_lora, FPSTR(INTL_ETHERNET_ACTIVATION));
+	server.sendContent(page_content);
+
+	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(4));
 	page_content += F("<b>" INTL_LOCATION "</b>&nbsp;");
 	page_content += FPSTR(TABLE_TAG_OPEN);
 	add_form_input(page_content, Config_latitude, FPSTR(INTL_LATITUDE), LEN_GEOCOORDINATES - 1);
@@ -1013,6 +1004,13 @@ static void webserver_config_send_body_get(String &page_content)
 	add_form_checkbox(Config_display_lora_info, FPSTR(INTL_DISPLAY_LORA_INFO));
 	add_form_checkbox(Config_display_device_info, FPSTR(INTL_DISPLAY_DEVICE_INFO));
 
+	page_content = FPSTR(WEB_BR_LF_B);
+	page_content += F(INTL_NEBULEAIR);
+	page_content += FPSTR(WEB_B_BR);
+	add_form_checkbox(Config_show_nebuleair, FPSTR(INTL_SHOW_NEBULEAIR));
+	page_content += FPSTR(TABLE_TAG_OPEN);
+	add_form_input(page_content, Config_id_nebuleair, FPSTR(INTL_ID_NEBULEAIR), LEN_ID - 1);
+	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 	server.sendContent(page_content);
 
 	page_content = FPSTR(WEB_BR_LF_B);
@@ -1031,7 +1029,7 @@ static void webserver_config_send_body_get(String &page_content)
 	server.sendContent(page_content);
 
 
-	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(4));
+	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(5));
 
 	page_content += FPSTR("<b>");
 	page_content += FPSTR(INTL_PM_SENSORS);
@@ -1082,7 +1080,7 @@ static void webserver_config_send_body_get(String &page_content)
 	server.sendContent(page_content);
 	//page_content = emptyString;
 
-	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(5));
+	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(6));
 
 	// //page_content += tmpl(FPSTR(INTL_SEND_TO), F("APIs"));
 	// page_content += tmpl(FPSTR(INTL_SEND_TO), F(""));
@@ -1114,7 +1112,6 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += FPSTR(WEB_NBSP_NBSP_BRACE);
 	page_content += form_checkbox(Config_ssl_custom, FPSTR(WEB_HTTPS), false);
 	page_content += FPSTR(WEB_BRACE_BR);
-
 	server.sendContent(page_content);
 	page_content = FPSTR(TABLE_TAG_OPEN);
 	add_form_input(page_content, Config_host_custom, FPSTR(INTL_SERVER), LEN_HOST_CUSTOM - 1);
@@ -1123,15 +1120,12 @@ static void webserver_config_send_body_get(String &page_content)
 	add_form_input(page_content, Config_user_custom, FPSTR(INTL_USER), LEN_USER_CUSTOM - 1);
 	add_form_input(page_content, Config_pwd_custom, FPSTR(INTL_PASSWORD), LEN_CFG_PASSWORD - 1);
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
-
 	page_content += FPSTR(BR_TAG);
 	page_content += form_checkbox(Config_send2custom2, FPSTR(INTL_SEND_TO_OWN_API2), false);
 	page_content += FPSTR(WEB_NBSP_NBSP_BRACE);
 	page_content += form_checkbox(Config_ssl_custom2, FPSTR(WEB_HTTPS), false);
 	page_content += FPSTR(WEB_BRACE_BR);
-
 	server.sendContent(page_content);
-	page_content = emptyString;
 	page_content = FPSTR(TABLE_TAG_OPEN);
 	add_form_input(page_content, Config_host_custom2, FPSTR(INTL_SERVER2), LEN_HOST_CUSTOM2 - 1);
 	add_form_input(page_content, Config_url_custom2, FPSTR(INTL_PATH2), LEN_URL_CUSTOM2 - 1);
@@ -1140,13 +1134,14 @@ static void webserver_config_send_body_get(String &page_content)
 	add_form_input(page_content, Config_pwd_custom2, FPSTR(INTL_PASSWORD2), LEN_CFG_PASSWORD2 - 1);
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 
-	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(6));
-	page_content += F("<b>" INTL_CURRENT_TIME "</b>&nbsp;");
-	page_content += F("<br/><br/>");
+	server.sendContent(page_content);
+	page_content = emptyString;
 
+	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(7));
+	page_content += F("<b>" INTL_RTC_TIME "</b>&nbsp;");
+	page_content += F("<br/><br/>");
 	now = rtc.now();
 	String current_time;
-	
 	current_time += String(now.year(), DEC);
 	current_time += "-";
 
@@ -1188,51 +1183,57 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += current_time;	
 	page_content += F("<br/><br/>");
 
-	page_content += F("<table><tr><td><form method='POST' action'/settime'>"
-	"<input type='submit' class='s_red' name='submit' value='" INTL_SET_TIME "'/>"
-	"</form></td></tr></table>");
-
 	page_content += FPSTR(TABLE_TAG_OPEN);
-	page_content += F("<tr>"
-          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
-          "<td style='width:{l}em'>"
-          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+page_content += F("<tr>"
+          "<td title='[&lt;= 4]'>" INTL_YEAR ":&nbsp;</td>"
+          "<td style='width:4em'>"
+          "<input type='number' form='secondar' name='year' id='year' placeholder='Year' value='");	  
+	page_content += String(now.year(), DEC);
+	page_content += F("' maxlength='4'/>"
           "</td></tr>"
 		  "<tr>"
-          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
-          "<td style='width:{l}em'>"
-          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "<td title='[&lt;= 2]'>" INTL_MONTH ":&nbsp;</td>"
+          "<td style='width:2em'>"
+          "<input type='number' form='secondar' name='month' id='month' placeholder='Month' value='");
+	page_content += String(now.month(), DEC);
+	page_content += F("' maxlength='2'/>"
           "</td></tr>"
 		  "<tr>"
-          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
-          "<td style='width:{l}em'>"
-          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "<td title='[&lt;= 2]'>" INTL_DAY ":&nbsp;</td>"
+          "<td style='width:2em'>"
+          "<input type='number' form='secondar' name='day' id='day' placeholder='Day' value='");
+	page_content += String(now.day(), DEC);
+	page_content += F("' maxlength='2'/>"
           "</td></tr>"
 		  "<tr>"
-          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
-          "<td style='width:{l}em'>"
-          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "<td title='[&lt;= 2]'>" INTL_HOUR ":&nbsp;</td>"
+          "<td style='width:2em'>"
+          "<input type='number' form='secondar' name='hour' id='hour' placeholder='Hour' value='");
+	page_content += String(now.hour(), DEC);  
+	page_content += F("' maxlength='2'/>"
           "</td></tr>"
 		  "<tr>"
-          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
-          "<td style='width:{l}em'>"
-          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
+          "<td title='[&lt;= 2]'>" INTL_MINUTE ":&nbsp;</td>"
+          "<td style='width:2em'>"
+          "<input type='number' form='secondar' name='minute' id='minute' placeholder='Minute' value='");
+	page_content += String(now.minute(), DEC);
+	page_content += F("' maxlength='2'/>"
           "</td></tr>"
 		  "<tr>"
-          "<td title='[&lt;= {l}]'>{i}:&nbsp;</td>"
-          "<td style='width:{l}em'>"
-          "<input type='number' name='{n}' id='{n}' placeholder='{i}' value='{v}' maxlength='{l}'/>"
-          "</td></tr>")
-
-
-	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
-
-	
+          "<td title='[&lt;= 2]'>" INTL_SECOND ":&nbsp;</td>"
+          "<td style='width:2em'>"
+          "<input type='number' form='secondar' name='second' id='second' placeholder='Second' value='");
+	page_content += String(now.second(), DEC);
+	page_content += F("' maxlength='2'/>"
+          "</td></tr>");
+	page_content += F("<tr><td>"
+	"<input type='submit' form='secondar' class='s_red' name='submit' value='" INTL_SET_TIME "'/>"
+	"</td></tr></table>");
 
 	server.sendContent(page_content);
 	page_content = emptyString;
 
-	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(7));
+	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(8));
 		//AJOUTER TEXTE, LIEN etc.
 	add_form_checkbox(Config_rgpd, FPSTR(INTL_RGPD_ACCEPT));
 
@@ -1243,6 +1244,7 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += form_submit(FPSTR(INTL_SAVE_AND_RESTART));
 	page_content += FPSTR(BR_TAG);
 	page_content += FPSTR(WEB_BR_FORM);
+	page_content += F("<form id='secondar' method='POST' action='/settime'></form>");
 	if (wificonfig_loop)
 	{ // scan for wlan ssids
 		page_content += F("<script>window.setTimeout(load_wifi_list,1000);</script>");
@@ -1620,8 +1622,81 @@ static void webserver_status()
 	versionHtml.replace("/", FPSTR(BR_TAG));
 	add_table_row_from_value(page_content, FPSTR(INTL_FIRMWARE), versionHtml);
 	add_table_row_from_value(page_content, F("Free Memory"), String(ESP.getFreeHeap()));
-	time_t now = time(nullptr);
-	add_table_row_from_value(page_content, FPSTR(INTL_TIME_UTC), ctime(&now));
+	// const time_t now = time(nullptr);
+	// struct tm *decomposed;
+	// decomposed = gmtime(&now);
+	// add_table_row_from_value(page_content, FPSTR(INTL_TIME_UTC), ctime(&now));
+
+
+	struct tm timeinfo;
+	String timestringntp;
+	if (!getLocalTime(&timeinfo))
+	{
+		Debug.println("Failed to obtain time");
+	}else{
+			timestringntp += "20";
+			timestringntp += String(timeinfo.tm_year-100);
+			timestringntp += "-";
+			if (timeinfo.tm_mon + 1 < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_mon + 1);
+			timestringntp += "-";
+			if (timeinfo.tm_mday < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_mday);
+			timestringntp += "T";
+			if (timeinfo.tm_hour < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_hour);
+			timestringntp += ":";
+			if (timeinfo.tm_min < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_min);
+			timestringntp += ":";
+			if (timeinfo.tm_sec < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_sec);
+			timestringntp += "Z";
+	}
+	add_table_row_from_value(page_content, FPSTR(INTL_TIME_UTC), timestringntp);
+	add_table_row_from_value(page_content, FPSTR(INTL_UTC_OFFSET), String(cfg::utc_offset));
+	now2 = rtc.now();
+	String current_time;
+	
+	current_time += String(now2.year(), DEC);
+	current_time += "-";
+
+	if (now2.month() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now2.month(), DEC);
+	current_time += "-";
+
+	if (now2.day() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now2.day(),DEC);
+
+	current_time += "T";
+	if (now2.hour() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now2.hour(), DEC);
+	current_time += ":";
+
+	if (now2.minute() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now2.minute(), DEC);
+	current_time += ":";
+
+	if (now2.second() < 10)
+	{
+		current_time += "0";
+	}
+	current_time += String(now2.second());
+	current_time += "Z";
+
+	add_table_row_from_value(page_content, FPSTR(INTL_TIME_RTC), current_time);
 	add_table_row_from_value(page_content, F("Uptime"), delayToString(millis() - time_point_device_start_ms));
 	if (cfg::sds_read)
 	{
@@ -1715,6 +1790,54 @@ static void webserver_serial()
 	String s(Debug.popLines());
 
 	server.send(s.length() ? 200 : 204, FPSTR(TXT_CONTENT_TYPE_TEXT_PLAIN), s);
+}
+
+
+/*****************************************************************
+ * Webserver Set Time in RTC module                             *
+ *****************************************************************/
+static void webserver_settime()
+{
+	Debug.print("Set ddasdasdasdasd");
+
+	if (server.hasArg("year") && server.hasArg("month") && server.hasArg("day") && server.hasArg("hour") && server.hasArg("minute") &&server.hasArg("second"))
+	{
+		Debug.print("Set date/time");
+
+		rtc.adjust(DateTime(server.arg("year").toInt(), server.arg("month").toInt(), server.arg("day").toInt(), server.arg("hour").toInt(), server.arg("minute").toInt(), server.arg("second").toInt()));
+
+	}else{
+	Debug.print("Can't set date/time");
+	}
+
+	//RELOAD ALL After
+
+	//webserver_root();
+
+	if (WiFi.status() != WL_CONNECTED)
+	{
+		sendHttpRedirect();
+	}
+	else
+	{
+		if (!webserver_request_auth())
+		{
+			return;
+		}
+
+		RESERVE_STRING(page_content, XLARGE_STR);
+		start_html_page(page_content, emptyString);
+		debug_outln_info(F("ws: root ..."));
+
+		// Enable Pagination
+		page_content += FPSTR(WEB_ROOT_PAGE_CONTENT);
+		page_content.replace(F("{t}"), FPSTR(INTL_CURRENT_DATA));
+		page_content.replace(F("{s}"), FPSTR(INTL_DEVICE_STATUS));
+		page_content.replace(F("{conf}"), FPSTR(INTL_CONFIGURATION));
+		page_content.replace(F("{restart}"), FPSTR(INTL_RESTART_SENSOR));
+		page_content.replace(F("{debug}"), FPSTR(INTL_DEBUG_LEVEL));
+		end_html_page(page_content);
+	}
 }
 
 /*****************************************************************
@@ -2021,6 +2144,7 @@ static void setup_webserver()
 	server.on(F("/fwlink"), webserver_config);
 	server.on(F("/debug"), webserver_debug_level);
 	server.on(F("/serial"), webserver_serial);
+	server.on(F("/settime"), webserver_settime);
 	server.on(F("/removeConfig"), webserver_removeConfig);
 	server.on(F("/reset"), webserver_reset);
 	server.on(F("/data.json"), webserver_data_json);
@@ -2260,7 +2384,7 @@ uint8_t getOffset()
 		DeserializationError error = deserializeJson(json, reponseJSON);
 		if (strcmp(error.c_str(), "Ok") == 0)
 		{
-			return ((uint8_t)(json["dst_offset"]) + (uint8_t)(json["raw_offset"]))/2;
+			return ((int)(json["dst_offset"]) + (int)(json["raw_offset"]))/3600;
 		}
 		else
 		{
@@ -3501,8 +3625,6 @@ void setup()
 	Debug.println("Couldn't find RTC");
 	}
 
-	//rtc.adjust(DateTime(2023, 1, 1, 0, 0, 0));  //FORM SECONDAR!!!! ou bin fom qui push le time 1 fois.
-
 	String cfgName(F("/config.json"));
 	File configFile = SPIFFS.open(cfgName, "r");
 	
@@ -3528,34 +3650,20 @@ void loop()
 {
 
 
-now = rtc.now();
-Debug.print(now.year(), DEC);
-Debug.print("-");
-Debug.print(now.month(), DEC);
-Debug.print("-");
-Debug.print(now.day(), DEC);
-Debug.print("-");
-Debug.print(daysOfTheWeek[now.dayOfTheWeek()]);
-Debug.print("/");
-Debug.print(now.hour(), DEC);
-Debug.print(":");
-Debug.print(now.minute(), DEC);
-Debug.print(":");
-Debug.println(now.second(), DEC);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+//now = rtc.now();
+// Debug.print(now.year(), DEC);
+// Debug.print("-");
+// Debug.print(now.month(), DEC);
+// Debug.print("-");
+// Debug.print(now.day(), DEC);
+// Debug.print("-");
+// Debug.print(daysOfTheWeek[now.dayOfTheWeek()]);
+// Debug.print("/");
+// Debug.print(now.hour(), DEC);
+// Debug.print(":");
+// Debug.print(now.minute(), DEC);
+// Debug.print(":");
+// Debug.println(now.second(), DEC);
 
 
 	unsigned sum_send_time = 0;

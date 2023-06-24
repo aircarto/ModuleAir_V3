@@ -81,6 +81,8 @@ enum ConfigShapeId {
 	Config_has_ethernet,
 	Config_utc_offset,
 	Config_rgpd,
+	Config_show_nebuleair,
+	Config_id_nebuleair,
 };
 static constexpr char CFG_KEY_HAS_WIFI[] PROGMEM = "has_wifi";
 static constexpr char CFG_KEY_HAS_LORA[] PROGMEM = "has_lora";
@@ -137,6 +139,8 @@ static constexpr char CFG_KEY_HAS_SDCARD[] PROGMEM = "has_sdcard";
 static constexpr char CFG_KEY_HAS_ETHERNET[] PROGMEM = "has_ethernet";
 static constexpr char CFG_KEY_UTC_OFFSET[] PROGMEM = "utc_offset";
 static constexpr char CFG_KEY_RGPD[] PROGMEM = "rgpd";
+static constexpr char CFG_KEY_SHOW_NEBULEAIR[] PROGMEM = "show_nebuleair";
+static constexpr char CFG_KEY_ID_NEBULEAIR[] PROGMEM = "id_nebuleair";
 static constexpr ConfigShapeEntry configShape[] PROGMEM = {
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_WIFI, &cfg::has_wifi },
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_LORA, &cfg::has_lora },
@@ -193,4 +197,6 @@ static constexpr ConfigShapeEntry configShape[] PROGMEM = {
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_ETHERNET, &cfg::has_ethernet },
 	{ Config_Type_UInt, 0, CFG_KEY_UTC_OFFSET, &cfg::utc_offset },
 	{ Config_Type_Bool, 0, CFG_KEY_RGPD, &cfg::rgpd },
+	{ Config_Type_Bool, 0, CFG_KEY_SHOW_NEBULEAIR, &cfg::show_nebuleair },
+	{ Config_Type_String, sizeof(cfg::id_nebuleair)-1, CFG_KEY_ID_NEBULEAIR, cfg::id_nebuleair },
 };

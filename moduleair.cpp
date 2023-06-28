@@ -78,18 +78,19 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 #include "./configuration.h"
 
 // includes files
+#include "./bmx280_i2c.h"
+#include "./cairsens.h"
 #include "./intl.h"
 #include "./utils.h"
 #include "defines.h"
 #include "ext_def.h"
+#include "./html-content.h"
 
 
 // define size of the config JSON
 #define JSON_BUFFER_SIZE 2300
 // define size of the AtmoSud Forecast API JSON
 #define JSON_BUFFER_SIZE2 500
-
-LoggerConfig loggerConfigs[LoggerCount];
 
 // test variables
 long int sample_count = 0;
@@ -100,31 +101,128 @@ bool sdcard_found = false;
 bool file_created = false;
 
 
+//I2C
 
+// void receiveEvent(int howMany);
+
+bool get_config = false;
+
+uint32_t i = 0;
+
+void onRequest(){
+  Wire.print(i++);
+  Wire.print(" Packets.");
+  Debug.println("onRequest");
+}
+
+// char config_array[] = "";
+
+// //1338
+// String config_string = "";
+
+byte config_byte[28];
+
+
+void onReceive1(int len){
+  while(Wire.available()){
+    // Debug.write(Wire.read());
+
+	Wire.readBytes(config_byte,28);
+
+	// //sprintf(config_array, Wire.read());
+
+	// // char* letter = Wire.read();
+	// //config_string += (const char*)Wire.read();  //AVOIR
+	//     //  content.concat(datarcv);
+	// if (char_count == 0)
+	// {
+
+	// strcpy(config_array, (const char*)Wire.read());
+
+	// }else{
+
+	// strcat(config_array, (const char*)Wire.read());
+
+
+	// }
+
+
+	
+
+  }
+//   Wire.flush;
+//   Debug.println();
+//   get_config = true;
+	Debug.println(len);
+	// Debug.println(config_string);
+	get_config = true;
+}
+
+// void receiveEvent1(int howMany)
+// {
+//     while (1 < WireSlave.available()) // loop through all but the last byte
+//     {
+//         char c = WireSlave.read();  // receive byte as a character
+//         Debug.print(c);            // print the character
+//     }
+
+//     int x = WireSlave.read();   // receive byte as an integer
+//     Debug.println(x);          // print the integer
+
+// 	get_config = true;
+// }
+
+// void receiveEvent2(int howMany)
+// {
+
+// }
 
 namespace cfg
 {
-	unsigned debug = DEBUG;
-	unsigned sending_intervall_ms = SENDING_INTERVALL_MS;
+	unsigned debug = 5;  //default
+	unsigned sending_intervall_ms = 120000;
+
+	//dans ext_def
+
+	// char current_lang[3] = "";
 
 	// main config
-	bool has_sdcard = HAS_SDCARD;
-	bool has_matrix = HAS_MATRIX;
+	bool has_sdcard = false;
+	bool has_matrix = false;
+	bool has_wifi = false;
+	bool has_lora = false;
+	bool has_ethernet = false;
+	// bool wifi_connection_lost = false;
+	// bool lora_connection_lost = false;
+	// bool ethernet_connection_lost = false;
 
 	// (in)active sensors
-	bool sds_read = SDS_READ;
-	bool npm_read = NPM_READ;
-	bool bmx280_read = BMX280_READ;
-	bool mhz16_read = MHZ16_READ;
-	bool mhz19_read = MHZ19_READ;
-	bool ccs811_read = CCS811_READ;
-	bool enveano2_read = ENVEANO2_READ;
+	bool sds_read = false;
+	bool npm_read = false;
+	bool bmx280_read = false;
+	bool mhz16_read = false;
+	bool mhz19_read = false;
+	bool ccs811_read = false;
+	bool enveano2_read = false;
 
-	bool display_measure = DISPLAY_MEASURE;
-	bool display_forecast = DISPLAY_FORECAST;
-	bool display_wifi_info = DISPLAY_WIFI_INFO;
-	bool display_lora_info = DISPLAY_LORA_INFO;
-	bool display_device_info = DISPLAY_DEVICE_INFO;
+	bool display_measure = false;
+	bool display_forecast = false;
+
+	unsigned utc_offset = 0;
+	bool show_nebuleair = false;
+
+	//dans ext_def?
+	// bool display_wifi_info = false;
+	// bool display_lora_info = false;
+	// bool display_device_info = false;
+
+	// char appeui[LEN_APPEUI] = "0000";
+	// char deveui[LEN_DEVEUI] = "0000";
+	// char appkey[LEN_APPKEY] = "0000";
+
+	// char latitude[LEN_GEOCOORDINATES] = "0.0000";
+	// char longitude[LEN_GEOCOORDINATES] = "0.0000";
+	// char height_above_sealevel[8] = "0";
 
 }
 
@@ -1693,6 +1791,11 @@ MHZ19 mhz19;
 CCS811 ccs811(-1);
 
 /*****************************************************************
+ * Envea Cairsens declaration                                        *
+ *****************************************************************/
+CairsensUART cairsens(&serialNO2);
+
+/*****************************************************************
  * Time                                       *
  *****************************************************************/
 
@@ -1723,6 +1826,34 @@ int last_sendData_returncode;
 
 bool wifi_connection_lost;
 bool lora_connection_lost;
+
+
+/*****************************************************************
+ * dew point helper function                                     *
+ *****************************************************************/
+static float dew_point(const float temperature, const float humidity)
+{
+	float dew_temp;
+	const float k2 = 17.62;
+	const float k3 = 243.12;
+
+	dew_temp = k3 * (((k2 * temperature) / (k3 + temperature)) + log(humidity / 100.0f)) / (((k2 * k3) / (k3 + temperature)) - log(humidity / 100.0f));
+
+	return dew_temp;
+}
+
+/*****************************************************************
+ * Pressure at sea level function                                     *
+ *****************************************************************/
+// static float pressure_at_sealevel(const float temperature, const float pressure)
+// {
+// 	float pressure_at_sealevel;
+
+// 		pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * readCorrectionOffset(cfg::height_above_sealevel)))), -5.255f);
+
+
+// 	return pressure_at_sealevel;
+// }
 
 /*****************************************************************
  * SDS variables and enums                                      *
@@ -1832,6 +1963,10 @@ float last_value_CCS811 = -1.0;
 uint32_t ccs811_sum = 0;
 uint16_t ccs811_val_count = 0;
 
+float last_value_no2 = -1.0;
+uint32_t no2_sum = 0;
+uint16_t no2_val_count = 0;
+
 String last_data_string;
 int last_signal_strength;
 int last_disconnect_reason;
@@ -1847,6 +1982,7 @@ unsigned long NPM_error_count;
 unsigned long MHZ16_error_count;
 unsigned long MHZ19_error_count;
 unsigned long CCS811_error_count;
+unsigned long Cairsens_error_count;
 unsigned long WiFi_error_count;
 
 unsigned long last_page_load = millis();
@@ -1857,6 +1993,9 @@ unsigned long last_display_millis_matrix = 0;
 uint8_t next_display_count = 0;
 
 #define msSince(timestamp_before) (act_milli - (timestamp_before))
+
+const char data_first_part[] PROGMEM = "{\"software_version\": \"" SOFTWARE_VERSION_STR "\", \"sensordatavalues\":[";
+const char JSON_SENSOR_DATA_VALUES[] PROGMEM = "sensordatavalues";
 
 /*****************************************************************
  * read SDS011 sensor serial and firmware date                   *
@@ -2622,6 +2761,53 @@ static void fetchSensorNPM(String &s)
 	}
 }
 
+
+/*****************************************************************
+ * read Cairsens sensor values                              *
+ *****************************************************************/
+static void fetchSensorCairsens(String &s)
+{
+	const char *const sensor_name = SENSORS_ENVEANO2;
+	debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(sensor_name));
+
+	uint8_t no2_val = 0;
+
+	if (cairsens.getNO2InstantVal(no2_val) == CairsensUART::NO_ERROR)
+	{
+		no2_sum += no2_val;
+		no2_val_count++;
+		debug_outln(String(no2_val_count), DEBUG_MAX_INFO);
+	}
+	else
+	{
+		Debug.println("Could not get Cairsens NOX value");
+	}
+
+	if (send_now)
+	{
+		last_value_no2 = -1.0f;
+
+		if (no2_val_count >= 12)
+		{
+			last_value_no2 = CairsensUART::ppbToPpm(CairsensUART::NO2, float(no2_sum / no2_val_count));
+			add_Value2Json(s, F("Cairsens_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
+			debug_outln_info(FPSTR(DBG_TXT_SEP));
+		}
+		else
+		{
+			Cairsens_error_count++;
+		}
+
+		no2_sum = 0;
+		no2_val_count = 0;
+	}
+
+	debug_outln_info(FPSTR(DBG_TXT_SEP));
+	debug_outln_verbose(FPSTR(DBG_TXT_END_READING), FPSTR(sensor_name));
+}
+
+
+
 /*****************************************************************
  * display values                                                *
  *****************************************************************/
@@ -2711,7 +2897,7 @@ static void display_values_matrix()
 
 	if (cfg::enveano2_read)
 	{
-		cov_value = last_value_no2;
+		no2_value = last_value_no2;
 		cov_sensor = FPSTR(SENSORS_ENVEANO2);
 	}
 
@@ -2758,7 +2944,7 @@ static void display_values_matrix()
 
 	if (cfg::enveano2_read && cfg::display_measure)
 	{
-		if (cfg_screen_envean02)
+		if (cfg_screen_enveano2)
 		screens[screen_count++] = 9;
 	}
 
@@ -2789,23 +2975,23 @@ static void display_values_matrix()
 			screens[screen_count++] = 19; // Atmo Sud forecast PM2.5
 	}
 
-	if (cfg::display_wifi_info && cfg::has_wifi)
-	{
-		screens[screen_count++] = 20; // Wifi info
-	}
-	if (cfg::display_device_info)
-	{
-		screens[screen_count++] = 21; // chipID, firmware and count of measurements
-		screens[screen_count++] = 22; // Latitude, longitude, altitude
-		if (cfg::npm_read && cfg::display_measure)
-		{
-			screens[screen_count++] = 23; // info NPM
-		}
-	}
-	if (cfg::display_lora_info && cfg::has_lora)
-	{
-		screens[screen_count++] = 24; // Lora info
-	}
+	// if (cfg::display_wifi_info && cfg::has_wifi)
+	// {
+	// 	screens[screen_count++] = 20; // Wifi info
+	// }
+	// if (cfg::display_device_info)
+	// {
+	// 	screens[screen_count++] = 21; // chipID, firmware and count of measurements
+	// 	screens[screen_count++] = 22; // Latitude, longitude, altitude
+	// 	if (cfg::npm_read && cfg::display_measure)
+	// 	{
+	// 		screens[screen_count++] = 23; // info NPM
+	// 	}
+	// }
+	// if (cfg::display_lora_info && cfg::has_lora)
+	// {
+	// 	screens[screen_count++] = 24; // Lora info
+	// }
 
 	screens[screen_count++] = 25; // Logos
 
@@ -3212,7 +3398,7 @@ static void display_values_matrix()
 			display.setFont(NULL);
 			display.setTextSize(2);
 			display.setTextColor(myWHITE);
-			drawCentreString(String(pressure_at_sealevel(t_value, p_value) / 100, 0), 0, 9, 0);
+			// drawCentreString(String(pressure_at_sealevel(t_value, p_value) / 100, 0), 0, 9, 0);
 		}
 		else
 		{
@@ -3503,13 +3689,13 @@ static void display_values_matrix()
 		display.print("GPS");
 		display.setCursor(0, 10);
 		display.print("Latitude:");
-		display.print(cfg::latitude);
+		// display.print(cfg::latitude);
 		display.setCursor(0, 16);
 		display.print("Longitude:");
-		display.print(cfg::longitude);
+		// display.print(cfg::longitude);
 		display.setCursor(0, 22);
 		display.print("Altitude:");
-		display.print(cfg::height_above_sealevel);
+		// display.print(cfg::height_above_sealevel);
 		break;
 	case 23:
 		if ((pm10_value != -1.0 || pm25_value != -1.0 || pm01_value != -1.0))
@@ -3536,11 +3722,11 @@ static void display_values_matrix()
 		display.setCursor(0, 4);
 		display.print("LoRaWAN Info");
 		display.setCursor(0, 10);
-		display.print(cfg::appeui);
+		// display.print(cfg::appeui);
 		display.setCursor(0, 16);
-		display.print(cfg::deveui);
+		// display.print(cfg::deveui);
 		display.setCursor(0, 22);
-		display.print(cfg::appkey);
+		// display.print(cfg::appkey);
 		break;
 	case 25:
 		if (has_logo && (logos[logo_index + 1] != 0 && logo_index != 5))
@@ -3927,6 +4113,217 @@ void *StackPtrAtStart;
 void *StackPtrEnd;
 UBaseType_t watermarkStart;
 
+
+/*****************************************************************
+ * SD card                                                  *
+ *****************************************************************/
+
+// char data_file[24];
+
+String file_name;
+
+static void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
+{
+	Debug.printf("Listing directory: %s\n", dirname);
+
+	File root = fs.open(dirname);
+	if (!root)
+	{
+		Debug.println("Failed to open directory");
+		return;
+	}
+	if (!root.isDirectory())
+	{
+		Debug.println("Not a directory");
+		return;
+	}
+
+	File file = root.openNextFile();
+	while (file)
+	{
+		if (file.isDirectory())
+		{
+			Debug.print("  DIR : ");
+			Debug.println(file.name());
+			if (levels)
+			{
+				listDir(fs, file.name(), levels - 1);
+			}
+		}
+		else
+		{
+			Debug.print("  FILE: ");
+			Debug.print(file.name());
+			Debug.print("  SIZE: ");
+			Debug.println(file.size());
+		}
+		file = root.openNextFile();
+	}
+}
+
+static void createDir(fs::FS &fs, const char *path)
+{
+	Debug.printf("Creating Dir: %s\n", path);
+	if (fs.mkdir(path))
+	{
+		Debug.println("Dir created");
+	}
+	else
+	{
+		Debug.println("mkdir failed");
+	}
+}
+
+static void removeDir(fs::FS &fs, const char *path)
+{
+	Debug.printf("Removing Dir: %s\n", path);
+	if (fs.rmdir(path))
+	{
+		Debug.println("Dir removed");
+	}
+	else
+	{
+		Debug.println("rmdir failed");
+	}
+}
+
+static void readFile(fs::FS &fs, const char *path)
+{
+	Debug.printf("Reading file: %s\n", path);
+
+	File file = fs.open(path);
+	if (!file)
+	{
+		Debug.println("Failed to open file for reading");
+		return;
+	}
+
+	Debug.print("Read from file: ");
+	while (file.available())
+	{
+		Serial.write(file.read());
+	}
+	file.close();
+}
+
+static void writeFile(fs::FS &fs, const char *path, const char *message)
+{
+	Debug.printf("Writing file: %s\n", path);
+
+	File file = fs.open(path, FILE_WRITE);
+	if (!file)
+	{
+		Debug.println("Failed to open file for writing");
+		return;
+	}
+	if (file.print(message))
+	{
+		Debug.println("File written");
+	}
+	else
+	{
+		Debug.println("Write failed");
+	}
+	file.close();
+}
+
+static void appendFile(fs::FS &fs, const char *path, const char *message)
+{
+	Debug.printf("Appending to file: %s\n", path);
+
+	File file = fs.open(path, FILE_APPEND);
+	if (!file)
+	{
+		Debug.println("Failed to open file for appending");
+		return;
+	}
+	if (file.print(message))
+	{
+		Debug.println("Message appended");
+	}
+	else
+	{
+		Debug.println("Append failed");
+	}
+	file.close();
+}
+
+static void renameFile(fs::FS &fs, const char *path1, const char *path2)
+{
+	Debug.printf("Renaming file %s to %s\n", path1, path2);
+	if (fs.rename(path1, path2))
+	{
+		Debug.println("File renamed");
+	}
+	else
+	{
+		Debug.println("Rename failed");
+	}
+}
+
+static void deleteFile(fs::FS &fs, const char *path)
+{
+	Debug.printf("Deleting file: %s\n", path);
+	if (fs.remove(path))
+	{
+		Debug.println("File deleted");
+	}
+	else
+	{
+		Debug.println("Delete failed");
+	}
+}
+
+static void testFileIO(fs::FS &fs, const char *path)
+{
+	File file = fs.open(path);
+	static uint8_t buf[512];
+	size_t len = 0;
+	uint32_t start = millis();
+	uint32_t end = start;
+	if (file)
+	{
+		len = file.size();
+		size_t flen = len;
+		start = millis();
+		while (len)
+		{
+			size_t toRead = len;
+			if (toRead > 512)
+			{
+				toRead = 512;
+			}
+			file.read(buf, toRead);
+			len -= toRead;
+		}
+		end = millis() - start;
+		Debug.printf("%u bytes read for %u ms\n", flen, end);
+		file.close();
+	}
+	else
+	{
+		Debug.println("Failed to open file for reading");
+	}
+
+	file = fs.open(path, FILE_WRITE);
+	if (!file)
+	{
+		Debug.println("Failed to open file for writing");
+		return;
+	}
+
+	size_t i;
+	start = millis();
+	for (i = 0; i < 2048; i++)
+	{
+		file.write(buf, 512);
+	}
+	end = millis() - start;
+	Debug.printf("%u bytes written for %u ms\n", 2048 * 512, end);
+	file.close();
+}
+
+
 /*****************************************************************
  * The Setup                                                     *
  *****************************************************************/
@@ -3948,14 +4345,122 @@ void setup()
 	esp_chipid = String((uint16_t)(ESP.getEfuseMac() >> 32), HEX); // for esp32
 	esp_chipid += String((uint32_t)ESP.getEfuseMac(), HEX);
 	esp_chipid.toUpperCase();
-	WiFi.persistent(false);
 
-	debug_outln_info(F("ModuleAirV2: " SOFTWARE_VERSION_STR "/"), String(CURRENT_LANG));
-
-
-
-	Wire.begin(I2C_PIN_SDA, I2C_PIN_SCL);
+	Wire.onReceive(onReceive1);
+	Wire.onRequest(onRequest);
+	Wire.begin((uint8_t)I2C_SLAVE_ADDR);
+	// Wire.begin(I2C_SLAVE_ADDR, I2C_PIN_SDA, I2C_PIN_SCL);
 	Wire1.begin(I2C_PIN_SDA_2, I2C_PIN_SCL_2);  //REVOIRLES PINS
+
+	// bool success = WireSlave.begin(I2C_PIN_SDA, I2C_PIN_SCL, I2C_SLAVE_ADDR);
+    // if (!success) {
+    //     Serial.println("I2C slave init failed");
+    //     while(1) delay(100);
+    // }
+
+	// while (char_count <= 1318){
+	// 	if(char_count == 1){
+	// 		Debug.println("Config is loading...");
+	// 	}
+	// 	if(char_count == 1318){
+	// 		Debug.println("Config is loaded...");
+	// 		Debug.println(config_string);
+	// 		break;
+	// 	}
+	//}
+
+	while(!get_config)
+	{
+		Debug.println("Wait for config...");
+	}
+    
+
+cfg::has_sdcard = config_byte[0];
+cfg::has_matrix = config_byte[1];
+cfg::has_wifi = config_byte[2];
+cfg::has_lora = config_byte[3];
+cfg::has_ethernet = config_byte[4];
+cfg::sds_read = config_byte[5];
+cfg::npm_read = config_byte[6];
+cfg::bmx280_read = config_byte[7];
+cfg::mhz16_read = config_byte[8];
+cfg::mhz19_read = config_byte[9];
+cfg::ccs811_read = config_byte[10];
+cfg::enveano2_read = config_byte[11];
+cfg::display_measure = config_byte[12];
+cfg::display_forecast = config_byte[13];
+
+String timestringntp;
+
+timestringntp += "20";
+timestringntp += String(config_byte[14]);
+timestringntp += "-";
+if (config_byte[15] + 1 < 10){timestringntp += "0";}
+timestringntp += String(config_byte[15]);
+timestringntp += "-";
+if (config_byte[16] < 10){timestringntp += "0";}
+timestringntp += String(config_byte[16]);
+timestringntp += "T";
+if (config_byte[17] < 10){timestringntp += "0";}
+timestringntp += String(config_byte[18]);
+timestringntp += ":";
+if (config_byte[18] < 10){timestringntp += "0";}
+timestringntp += String(config_byte[18]);
+timestringntp += ":";
+if (config_byte[19] < 10){timestringntp += "0";}
+timestringntp += String(config_byte[19]);
+timestringntp += "Z";
+
+cfg::utc_offset = config_byte[20];
+
+String current_time;
+current_time += "20";
+current_time += String(config_byte[21]);
+current_time += "-";
+if (config_byte[22] < 10){current_time += "0";}
+current_time += String(config_byte[22]);
+current_time += "-";
+if (config_byte[23] < 10){current_time += "0";}
+current_time += String(config_byte[23]);
+current_time += "T";
+if (config_byte[24] < 10){current_time += "0";}
+current_time += String(config_byte[24]);
+current_time += ":";
+if (config_byte[25] < 10){current_time += "0";}
+current_time += String(config_byte[25]);
+current_time += ":";
+if (config_byte[26] < 10){current_time += "0";}
+current_time += String(config_byte[26]);
+current_time += "Z";
+
+cfg::show_nebuleair = config_byte[27];
+
+debug_outln_info(F("ModuleAirV2: " SOFTWARE_VERSION_STR "/"), String(CURRENT_LANG));
+debug_outln_info(F("---- Config ----"));
+debug_outln_info(F("SD: "), cfg::has_sdcard);
+debug_outln_info(F("Matrix: "), cfg::has_matrix);
+debug_outln_info(F("Wifi: "), cfg::has_wifi);
+debug_outln_info(F("LoRaWAN: "), cfg::has_lora);
+debug_outln_info(F("Ehternet: "), cfg::has_ethernet);
+debug_outln_info(F("SDS: "), cfg::sds_read);
+debug_outln_info(F("NPM: "), cfg::npm_read);
+debug_outln_info(F("BME280: "), cfg::bmx280_read);
+debug_outln_info(F("MHZ16: "), cfg::mhz16_read);
+debug_outln_info(F("MHZ19: "), cfg::mhz19_read);
+debug_outln_info(F("CCS811: "), cfg::ccs811_read);
+debug_outln_info(F("Envea: "), cfg::enveano2_read);
+debug_outln_info(F("Display measure: "), cfg::display_measure);
+debug_outln_info(F("Display measure: "), cfg::display_forecast);
+debug_outln_info(F("Time NTP: "), timestringntp);
+debug_outln_info(F("UTC offset: "), cfg::utc_offset);
+debug_outln_info(F("Time RTC: "), current_time);
+debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
+
+
+// while(!get_config){
+//     WireSlave.update();
+//     delay(1);
+// }
 
 
 	if (cfg::has_matrix)
@@ -4084,7 +4589,10 @@ void setup()
 		{
 			// coordinates = true;
 			listDir(SD, "/", 0);
-			file_name = String("/") + String(GPSdata.year) + String("_") + String(GPSdata.month) + String("_") + String(GPSdata.day) + String("_") + String(GPSdata.hour) + String("_") + String(GPSdata.minute) + String("_") + String(GPSdata.second) + String(".csv");
+
+			file_name = "XXXXXXXX.csv";
+
+			// file_name = String("/") + String(GPSdata.year) + String("_") + String(GPSdata.month) + String("_") + String(GPSdata.day) + String("_") + String(GPSdata.hour) + String("_") + String(GPSdata.minute) + String("_") + String(GPSdata.second) + String(".csv");
 			writeFile(SD, file_name.c_str(), "");
 			appendFile(SD, file_name.c_str(), "Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
 			Debug.println("Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
@@ -4103,25 +4611,13 @@ void setup()
 
 void loop()
 {
-	String result_SDS, result_NPM, result_MHZ16, result_MHZ19, result_CCS811;
+	String result_SDS, result_NPM, result_MHZ16, result_MHZ19, result_CCS811, result_Cairsens;
 
 	unsigned sum_send_time = 0;
 
 	act_micro = micros();
 	act_milli = millis();
 	send_now = msSince(starttime) > cfg::sending_intervall_ms;
-
-	// Wait at least 30s for each NTP server to sync
-
-	if (cfg::has_wifi && !wifi_connection_lost)
-	{
-		if (!sntp_time_set && send_now && msSince(time_point_device_start_ms) < 1000 * 2 * 30 + 5000)
-		{
-			debug_outln_info(F("NTP sync not finished yet, skipping send"));
-			send_now = false;
-			starttime = act_milli;
-		}
-	}
 
 	sample_count++;
 
@@ -4210,38 +4706,16 @@ void loop()
 		if (cfg::sds_read)
 		{
 			data += result_SDS;
-			if (cfg::has_wifi && !wifi_connection_lost)
-			{
-				sum_send_time += sendSensorCommunity(result_SDS, SDS_API_PIN, FPSTR(SENSORS_SDS011), "SDS_");
-			}
 		}
 		if (cfg::npm_read)
 		{
 			data += result_NPM;
-			if (cfg::has_wifi && !wifi_connection_lost)
-			{
-				sum_send_time += sendSensorCommunity(result_NPM, NPM_API_PIN, FPSTR(SENSORS_NPM), "NPM_");
-			}
 		}
 
 		if (cfg::bmx280_read && (!bmx280_init_failed))
 		{
 			fetchSensorBMX280(result);
 			data += result;
-			if (bmx280.sensorID() == BME280_SENSOR_ID)
-			{
-				if (cfg::has_wifi && !wifi_connection_lost)
-				{
-					sum_send_time += sendSensorCommunity(result, BME280_API_PIN, FPSTR(SENSORS_BME280), "BME280_");
-				}
-			}
-			else
-			{
-				if (cfg::has_wifi && !wifi_connection_lost)
-				{
-					sum_send_time += sendSensorCommunity(result, BMP280_API_PIN, FPSTR(SENSORS_BMP280), "BMP280_");
-				}
-			}
 			result = emptyString;
 		}
 
@@ -4272,8 +4746,8 @@ void loop()
 		add_Value2Json(data, F("max_micro"), String(max_micro));
 		add_Value2Json(data, F("interval"), String(cfg::sending_intervall_ms));
 		add_Value2Json(data, F("signal"), String(last_signal_strength));
-		add_Value2Json(data, F("latitude"), String(cfg::latitude));
-		add_Value2Json(data, F("longitude"), String(cfg::longitude));
+		// add_Value2Json(data, F("latitude"), String(cfg::latitude));
+		// add_Value2Json(data, F("longitude"), String(cfg::longitude));
 
 		if ((unsigned)(data.lastIndexOf(',') + 1) == data.length())
 		{
@@ -4284,10 +4758,10 @@ void loop()
 		yield();
 
 		// only do a restart after finishing sending (Wifi). Befor Lora to avoid conflicts with the LMIC
-		if (msSince(time_point_device_start_ms) > DURATION_BEFORE_FORCED_RESTART_MS)
-		{
-			sensor_restart();
-		}
+		// if (msSince(time_point_device_start_ms) > DURATION_BEFORE_FORCED_RESTART_MS)
+		// {
+		// 	sensor_restart();
+		// }
 
 		// Resetting for next sampling
 		last_data_string = std::move(data);

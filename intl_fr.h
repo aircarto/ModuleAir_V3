@@ -90,7 +90,8 @@ const char INTL_ALLOW[] PROGMEM = "Autoriser";
 #define INTL_NEBULEAIR "Mon NebuleAir"
 #define INTL_LOCATION "Position"
 #define INTL_RTC_TIME "Heure module RTC"
-#define INTL_NTP_TIME "Heure module RTC"
+#define INTL_NTP_TIME "Heure NTP"
+#define INTL_TIME_ZONE "Fuseau horaire"
 const char INTL_DEBUG_SETTING_TO[] PROGMEM = "Paramètres de débogage";
 #define INTL_NONE "aucun"
 #define INTL_ERROR "erreur"

@@ -12,7 +12,7 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 #include <hal/hal.h>
 #include <SPI.h>
 #include <Wire.h>
-#include "./WirePacker.h"
+// #include "./WirePacker.h"
 #include <Ethernet.h>
 #include <RTClib.h>
 
@@ -304,9 +304,11 @@ uint8_t forecast_selector;
 
 RTC_DS3231 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-
+bool rtc_ok;
 DateTime now; //get time
-DateTime now2;
+
+struct tm timeinfo;
+
 // time management varialbles
 bool send_now = false;
 unsigned long starttime;
@@ -1021,8 +1023,8 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 
 	page_content += FPSTR(TABLE_TAG_OPEN);
-	add_form_input(page_content, Config_debug, FPSTR(INTL_DEBUG_LEVEL), 1);
-	add_form_input(page_content, Config_sending_intervall_ms, FPSTR(INTL_MEASUREMENT_INTERVAL), 5);
+	// add_form_input(page_content, Config_debug, FPSTR(INTL_DEBUG_LEVEL), 1);
+	// add_form_input(page_content, Config_sending_intervall_ms, FPSTR(INTL_MEASUREMENT_INTERVAL), 5);
 	add_form_input(page_content, Config_time_for_wifi_config, FPSTR(INTL_DURATION_ROUTER_MODE), 5);
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 
@@ -1138,10 +1140,49 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content = emptyString;
 
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(7));
-	page_content += F("<b>" INTL_RTC_TIME "</b>&nbsp;");
+	page_content += F("<b>" INTL_NTP_TIME "</b>&nbsp;");
+	page_content += F("<br/>");
+
+	String timestringntp;
+	if (!getLocalTime(&timeinfo))
+	{
+		Debug.println("Failed to obtain time");
+		timestringntp = "0000-00-00T00:00:00Z";
+	}else{
+			timestringntp += "20";
+			timestringntp += String(timeinfo.tm_year-100);
+			timestringntp += "-";
+			if (timeinfo.tm_mon + 1 < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_mon + 1);
+			timestringntp += "-";
+			if (timeinfo.tm_mday < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_mday);
+			timestringntp += "T";
+			if (timeinfo.tm_hour < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_hour);
+			timestringntp += ":";
+			if (timeinfo.tm_min < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_min);
+			timestringntp += ":";
+			if (timeinfo.tm_sec < 10){timestringntp += "0";}
+			timestringntp += String(timeinfo.tm_sec);
+			timestringntp += "Z";
+	}
+
+	page_content += timestringntp;	
 	page_content += F("<br/><br/>");
-	now = rtc.now();
+
+	page_content += F("<b>" INTL_TIME_ZONE "</b>&nbsp;");
+	page_content += F("<br/>");
+	add_form_input(page_content, Config_utc_offset, FPSTR(INTL_UTC_OFFSET), 12);
+	page_content += F("<br/><br/>");
+
+	page_content += F("<b>" INTL_RTC_TIME "</b>&nbsp;");
+	page_content += F("<br/>");
+
 	String current_time;
+	if(rtc_ok){
+	now = rtc.now();
 	current_time += String(now.year(), DEC);
 	current_time += "-";
 
@@ -1179,6 +1220,10 @@ static void webserver_config_send_body_get(String &page_content)
 	}
 	current_time += String(now.second());
 	current_time += "Z";
+	}else{
+
+	current_time = "0000-00-00T00:00:00Z";
+	}
 
 	page_content += current_time;	
 	page_content += F("<br/><br/>");
@@ -1628,7 +1673,6 @@ static void webserver_status()
 	// add_table_row_from_value(page_content, FPSTR(INTL_TIME_UTC), ctime(&now));
 
 
-	struct tm timeinfo;
 	String timestringntp;
 	if (!getLocalTime(&timeinfo))
 	{
@@ -1655,46 +1699,49 @@ static void webserver_status()
 	}
 	add_table_row_from_value(page_content, FPSTR(INTL_TIME_UTC), timestringntp);
 	add_table_row_from_value(page_content, FPSTR(INTL_UTC_OFFSET), String(cfg::utc_offset));
-	now2 = rtc.now();
 	String current_time;
-	
-	current_time += String(now2.year(), DEC);
+	if(rtc_ok){
+	now = rtc.now();
+	current_time += String(now.year(), DEC);
 	current_time += "-";
 
-	if (now2.month() < 10)
+	if (now.month() < 10)
 	{
 		current_time += "0";
 	}
-	current_time += String(now2.month(), DEC);
+	current_time += String(now.month(), DEC);
 	current_time += "-";
 
-	if (now2.day() < 10)
+	if (now.day() < 10)
 	{
 		current_time += "0";
 	}
-	current_time += String(now2.day(),DEC);
+	current_time += String(now.day(),DEC);
 
 	current_time += "T";
-	if (now2.hour() < 10)
+	if (now.hour() < 10)
 	{
 		current_time += "0";
 	}
-	current_time += String(now2.hour(), DEC);
+	current_time += String(now.hour(), DEC);
 	current_time += ":";
 
-	if (now2.minute() < 10)
+	if (now.minute() < 10)
 	{
 		current_time += "0";
 	}
-	current_time += String(now2.minute(), DEC);
+	current_time += String(now.minute(), DEC);
 	current_time += ":";
 
-	if (now2.second() < 10)
+	if (now.second() < 10)
 	{
 		current_time += "0";
 	}
-	current_time += String(now2.second());
+	current_time += String(now.second());
 	current_time += "Z";
+	}else{
+		current_time = "0000-00-00T00:00:00Z";
+	}
 
 	add_table_row_from_value(page_content, FPSTR(INTL_TIME_RTC), current_time);
 	add_table_row_from_value(page_content, F("Uptime"), delayToString(millis() - time_point_device_start_ms));
@@ -2958,6 +3005,17 @@ static void setupNetworkTime()
 	strcpy_P(ntpServer1, NTP_SERVER_1);
 	strcpy_P(ntpServer2, NTP_SERVER_2);
 	configTime(0, 0, ntpServer1, ntpServer2);
+
+		// while(!sntp_time_set)
+		// {
+		// 	debug_outln_info(F("NTP sync not finished yet"));
+		// }
+
+	// while(!getLocalTime(&timeinfo))
+	// {
+	// 	Debug.println("Waiting for NTP");
+	// }
+
 }
 
 static unsigned long sendDataToOptionalApis(const String &data)
@@ -3623,26 +3681,228 @@ void setup()
 
 	if (! rtc.begin()) { //ATTENTION FORCER Wire1 dans la lib!!!
 	Debug.println("Couldn't find RTC");
+	rtc_ok = false;
+	}else{
+	rtc_ok = true;
 	}
 
-	String cfgName(F("/config.json"));
-	File configFile = SPIFFS.open(cfgName, "r");
+	byte config_byte[28] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+	// union int32_2_byte
+	// {
+	// 	unsigned temp_uint32;
+	// 	byte temp_byte[4];
+	// } uconf;
+
+	// uconf.temp_uint32 = cfg::sending_intervall_ms;
+
+	//Check indianess
+
+	// config_byte[0] = uconf.temp_byte[3];
+	// config_byte[1] = uconf.temp_byte[2];
+	// config_byte[2] = uconf.temp_byte[1];
+	// config_byte[3] = uconf.temp_byte[0];
+
+	config_byte[0] = cfg::has_sdcard;
+	config_byte[1] = cfg::has_matrix;
+	config_byte[2] = cfg::has_wifi;
+	config_byte[3] = cfg::has_lora;
+	config_byte[4] = cfg::has_ethernet;
+	config_byte[5] = cfg::sds_read;
+	config_byte[6] = cfg::npm_read;
+	config_byte[7] = cfg::bmx280_read;
+	config_byte[8] = cfg::mhz16_read;
+	config_byte[9] = cfg::mhz19_read;
+	config_byte[10] = cfg::ccs811_read;
+	config_byte[11] = cfg::enveano2_read;
+	config_byte[12] = cfg::display_measure;
+	config_byte[13] = cfg::display_forecast;
+
+	// String cfgName(F("/config.json"));
+	// File configFile = SPIFFS.open(cfgName, "r");
+	// debug_outln_info(F("opened config file for i2c..."));
+	// datai2c = configFile.readString();
+	// datai2c.remove(datai2c.length()-1);
+
+	// String timestringntp;
+	unsigned long ntp_started = millis();
+
+	while(!getLocalTime(&timeinfo) && ((millis()- ntp_started) < 30000))
+	{
+		Debug.println("Failed to obtain time");
+	}
 	
-	debug_outln_info(F("opened config file for i2c..."));
-	datai2c = configFile.readString();
-	Debug.println(datai2c);
-	configFile.close();
+	if(getLocalTime(&timeinfo))
+	{
+	config_byte[14] = (byte)(timeinfo.tm_year-100);
+	config_byte[15] = (byte)timeinfo.tm_mon + 1;
+	config_byte[16] = (byte)timeinfo.tm_mday;
+	config_byte[17] = (byte)timeinfo.tm_hour;
+	config_byte[18] = (byte)timeinfo.tm_min;
+	config_byte[19] = (byte)timeinfo.tm_sec;
 
-        WirePacker packer;
-        packer.write(datai2c.c_str());
-        packer.end();
+	}else{
+	
+	config_byte[14] = 0;
+	config_byte[15] = 0;
+	config_byte[16] = 0;
+	config_byte[17] = 0;
+	config_byte[18] = 0;
+	config_byte[19] = 0;
+	}
 
-        // now transmit the packed data
-        Wire.beginTransmission(I2C_SLAVE_ADDR);
-        while (packer.available()) {    // write every packet byte
-            Wire.write(packer.read());
-        }
-        Wire.endTransmission();         // stop transmitting
+	config_byte[20] = cfg::utc_offset;
+
+	
+
+	// timestringntp = "0000-00-00T00:00:00Z";
+	
+	// 		timestringntp += "20";
+	// 		timestringntp += String(timeinfo.tm_year-100);
+	// 		timestringntp += "-";
+	// 		if (timeinfo.tm_mon + 1 < 10){timestringntp += "0";}
+	// 		timestringntp += String(timeinfo.tm_mon + 1);
+	// 		timestringntp += "-";
+	// 		if (timeinfo.tm_mday < 10){timestringntp += "0";}
+	// 		timestringntp += String(timeinfo.tm_mday);
+	// 		timestringntp += "T";
+	// 		if (timeinfo.tm_hour < 10){timestringntp += "0";}
+	// 		timestringntp += String(timeinfo.tm_hour);
+	// 		timestringntp += ":";
+	// 		if (timeinfo.tm_min < 10){timestringntp += "0";}
+	// 		timestringntp += String(timeinfo.tm_min);
+	// 		timestringntp += ":";
+	// 		if (timeinfo.tm_sec < 10){timestringntp += "0";}
+	// 		timestringntp += String(timeinfo.tm_sec);
+	// 		timestringntp += "Z";
+	//}
+
+
+// 	datai2c += ",\"time_utc\":\"";
+// 	datai2c +=timestringntp;
+
+// String current_time;
+
+
+	if(rtc_ok){
+	now = rtc.now();
+
+	config_byte[21] = (byte)(now.year()-2000);
+	config_byte[22] = (byte)now.month();
+	config_byte[23] = (byte)now.day();
+	config_byte[24] = (byte)now.hour();
+	config_byte[25] = (byte)now.minute();
+	config_byte[26] = (byte)now.second();
+
+	}else{
+
+	config_byte[21] = 0;
+	config_byte[22] = 0;
+	config_byte[23] = 0;
+	config_byte[24] = 0;
+	config_byte[25] = 0;
+	config_byte[26] = 0;
+
+	}
+
+	// if(rtc_ok){
+	// now = rtc.now();
+	// current_time += String(now.year(), DEC);
+	// current_time += "-";
+
+	// if (now.month() < 10)
+	// {
+	// 	current_time += "0";
+	// }
+	// current_time += String(now.month(), DEC);
+	// current_time += "-";
+
+	// if (now.day() < 10)
+	// {
+	// 	current_time += "0";
+	// }
+	// current_time += String(now.day(),DEC);
+
+	// current_time += "T";
+	// if (now.hour() < 10)
+	// {
+	// 	current_time += "0";
+	// }
+	// current_time += String(now.hour(), DEC);
+	// current_time += ":";
+
+	// if (now.minute() < 10)
+	// {
+	// 	current_time += "0";
+	// }
+	// current_time += String(now.minute(), DEC);
+	// current_time += ":";
+
+	// if (now.second() < 10)
+	// {
+	// 	current_time += "0";
+	// }
+	// current_time += String(now.second());
+	// current_time += "Z";
+	// }else{
+
+	// current_time = "0000-00-00T00:00:00Z";
+	// }
+
+	// datai2c += "\",\"time_rtc\":\"";
+	// datai2c += current_time;
+	// datai2c += "\"}";
+
+	// Debug.println(datai2c);
+	// configFile.close();
+
+	// delay(5000);
+// for (int i = 0; i < datai2c.length(); i++) {
+// 	Debug.println(datai2c[i]);
+// }
+
+// const char *datai2c_cstring = datai2c.c_str();
+
+
+
+// for (int i = 0; i < strlen(datai2c_cstring); i++) {
+
+config_byte[27] = cfg::show_nebuleair;
+
+delay(5000); //wait
+
+Wire.beginTransmission(I2C_SLAVE_ADDR);
+
+  Wire.write(config_byte, sizeof(config_byte));
+  Debug.println("Config sent!");
+
+
+// for (int i = 0; i < sizeof(config_byte); i++) {
+//   Wire.write(config_byte[i]);
+// }
+
+uint8_t error = Wire.endTransmission(true);
+
+
+
+// for (int i = 0; i < datai2c.length(); i++) {
+// 	Wire.beginTransmission(I2C_SLAVE_ADDR); 
+// 	Wire.print((char)(datai2c[i]));
+// 	uint8_t error = Wire.endTransmission(true);
+// // 	Debug.println(datai2c[i]);
+
+// // 	String single_char = datai2c[i];
+
+// // 	// const char* jsonchar = datai2c[i];
+  
+// //  Wire.printf(single_char.c_str());
+// delay(50);
+// }
+// // .c_str()
+//Wire.printf(datai2c.c_str());
+//Wire.print((char)(datai2c[0]));
+
+//Wire.write(datai2c.c_str());
 
 }
 
@@ -3674,15 +3934,15 @@ void loop()
 
 	// Wait at least 30s for each NTP server to sync
 
-	if (cfg::has_wifi && !wifi_connection_lost)
-	{
-		if (!sntp_time_set && send_now && msSince(time_point_device_start_ms) < 1000 * 2 * 30 + 5000)
-		{
-			debug_outln_info(F("NTP sync not finished yet, skipping send"));
-			send_now = false;
-			starttime = act_milli;
-		}
-	}
+	// if (cfg::has_wifi && !wifi_connection_lost)
+	// {
+	// 	if (!sntp_time_set && send_now && msSince(time_point_device_start_ms) < 1000 * 2 * 30 + 5000)
+	// 	{
+	// 		debug_outln_info(F("NTP sync not finished yet, skipping send"));
+	// 		send_now = false;
+	// 		starttime = act_milli;
+	// 	}
+	// }
 
 	sample_count++;
 

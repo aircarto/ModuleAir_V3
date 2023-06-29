@@ -115,76 +115,22 @@ void onRequest(){
   Debug.println("onRequest");
 }
 
-// char config_array[] = "";
-
-// //1338
-// String config_string = "";
-
-byte config_byte[28];
+byte config_byte[LEN_CONFIG_BYTE];
+byte data_byte[LEN_DATA_BYTE];
 
 
 void onReceive1(int len){
   while(Wire.available()){
-    // Debug.write(Wire.read());
-
-	Wire.readBytes(config_byte,28);
-
-	// //sprintf(config_array, Wire.read());
-
-	// // char* letter = Wire.read();
-	// //config_string += (const char*)Wire.read();  //AVOIR
-	//     //  content.concat(datarcv);
-	// if (char_count == 0)
-	// {
-
-	// strcpy(config_array, (const char*)Wire.read());
-
-	// }else{
-
-	// strcat(config_array, (const char*)Wire.read());
-
-
-	// }
-
-
-	
-
+	Wire.readBytes(config_byte,LEN_CONFIG_BYTE);
   }
-//   Wire.flush;
-//   Debug.println();
-//   get_config = true;
 	Debug.println(len);
-	// Debug.println(config_string);
 	get_config = true;
 }
-
-// void receiveEvent1(int howMany)
-// {
-//     while (1 < WireSlave.available()) // loop through all but the last byte
-//     {
-//         char c = WireSlave.read();  // receive byte as a character
-//         Debug.print(c);            // print the character
-//     }
-
-//     int x = WireSlave.read();   // receive byte as an integer
-//     Debug.println(x);          // print the integer
-
-// 	get_config = true;
-// }
-
-// void receiveEvent2(int howMany)
-// {
-
-// }
 
 namespace cfg
 {
 	unsigned debug = 5;  //default
 	unsigned sending_intervall_ms = 120000;
-
-	//dans ext_def
-
-	// char current_lang[3] = "";
 
 	// main config
 	bool has_sdcard = false;
@@ -192,12 +138,8 @@ namespace cfg
 	bool has_wifi = false;
 	bool has_lora = false;
 	bool has_ethernet = false;
-	// bool wifi_connection_lost = false;
-	// bool lora_connection_lost = false;
-	// bool ethernet_connection_lost = false;
 
 	// (in)active sensors
-	bool sds_read = false;
 	bool npm_read = false;
 	bool bmx280_read = false;
 	bool mhz16_read = false;
@@ -210,20 +152,7 @@ namespace cfg
 
 	unsigned utc_offset = 0;
 	bool show_nebuleair = false;
-
-	//dans ext_def?
-	// bool display_wifi_info = false;
-	// bool display_lora_info = false;
-	// bool display_device_info = false;
-
-	// char appeui[LEN_APPEUI] = "0000";
-	// char deveui[LEN_DEVEUI] = "0000";
-	// char appkey[LEN_APPKEY] = "0000";
-
-	// char latitude[LEN_GEOCOORDINATES] = "0.0000";
-	// char longitude[LEN_GEOCOORDINATES] = "0.0000";
-	// char height_above_sealevel[8] = "0";
-
+	uint16_t height_above_sealevel = 0;
 }
 
 
@@ -1758,14 +1687,12 @@ struct forecast atmoSud
 	- 1.0, -1.0, -1.0, -1.0, -1.0, -1.0
 };
 
-uint8_t arrayDownlink[5];
 uint8_t forecast_selector;
 
 /*****************************************************************
  * Serial declarations                                           *
  *****************************************************************/
 
-#define serialSDS (Serial1)
 #define serialNPM (Serial1)
 #define serialMHZ (Serial2)
 EspSoftwareSerial::UART serialNO2; //Serial3
@@ -1806,13 +1733,11 @@ unsigned long time_end_setup;
 unsigned long time_before_config;
 int prec;
 unsigned long time_point_device_start_ms;
-unsigned long starttime_SDS;
 unsigned long starttime_NPM;
 unsigned long starttime_MHZ16;
 unsigned long starttime_MHZ19;
 unsigned long starttime_CCS811;
 unsigned long starttime_Cairsens;
-unsigned long last_NPM;
 unsigned long act_micro;
 unsigned long act_milli;
 unsigned long last_micro = 0;
@@ -1845,29 +1770,16 @@ static float dew_point(const float temperature, const float humidity)
 /*****************************************************************
  * Pressure at sea level function                                     *
  *****************************************************************/
-// static float pressure_at_sealevel(const float temperature, const float pressure)
-// {
-// 	float pressure_at_sealevel;
-
-// 		pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * readCorrectionOffset(cfg::height_above_sealevel)))), -5.255f);
-
-
-// 	return pressure_at_sealevel;
-// }
-
-/*****************************************************************
- * SDS variables and enums                                      *
- *****************************************************************/
-
-bool is_SDS_running;
-
-// To read SDS responses
-
-enum
+static float pressure_at_sealevel(const float temperature, const float pressure)
 {
-	SDS_REPLY_HDR = 10,
-	SDS_REPLY_BODY = 8
-} SDS_waiting_for;
+	float pressure_at_sealevel;
+
+		// pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * readCorrectionOffset(cfg::height_above_sealevel)))), -5.255f);
+		pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * cfg::height_above_sealevel))), -5.255f); //A VERIFIER
+
+
+	return pressure_at_sealevel;
+}
 
 /*****************************************************************
  * NPM variables and enums                                       *
@@ -1926,14 +1838,6 @@ float last_value_BMX280_T = -128.0;
 float last_value_BMX280_P = -1.0;
 float last_value_BME280_H = -1.0;
 
-uint32_t sds_pm10_sum = 0;
-uint32_t sds_pm25_sum = 0;
-uint32_t sds_val_count = 0;
-uint32_t sds_pm10_max = 0;
-uint32_t sds_pm10_min = 20000;
-uint32_t sds_pm25_max = 0;
-uint32_t sds_pm25_min = 20000;
-
 uint32_t npm_pm1_sum = 0;
 uint32_t npm_pm10_sum = 0;
 uint32_t npm_pm25_sum = 0;
@@ -1942,8 +1846,6 @@ uint32_t npm_pm10_sum_pcs = 0;
 uint32_t npm_pm25_sum_pcs = 0;
 uint16_t npm_val_count = 0;
 
-float last_value_SDS_P1 = -1.0;
-float last_value_SDS_P2 = -1.0;
 float last_value_NPM_P0 = -1.0;
 float last_value_NPM_P1 = -1.0;
 float last_value_NPM_P2 = -1.0;
@@ -1967,23 +1869,15 @@ float last_value_no2 = -1.0;
 uint32_t no2_sum = 0;
 uint16_t no2_val_count = 0;
 
-String last_data_string;
-int last_signal_strength;
-int last_disconnect_reason;
-// int last_connect_reason;
-
 String esp_chipid;
 
-String last_value_SDS_version;
 String last_value_NPM_version;
 
-unsigned long SDS_error_count;
 unsigned long NPM_error_count;
 unsigned long MHZ16_error_count;
 unsigned long MHZ19_error_count;
 unsigned long CCS811_error_count;
 unsigned long Cairsens_error_count;
-unsigned long WiFi_error_count;
 
 unsigned long last_page_load = millis();
 
@@ -1997,40 +1891,6 @@ uint8_t next_display_count = 0;
 const char data_first_part[] PROGMEM = "{\"software_version\": \"" SOFTWARE_VERSION_STR "\", \"sensordatavalues\":[";
 const char JSON_SENSOR_DATA_VALUES[] PROGMEM = "sensordatavalues";
 
-/*****************************************************************
- * read SDS011 sensor serial and firmware date                   *
- *****************************************************************/
-static String SDS_version_date()
-{
-
-	if (cfg::sds_read && !last_value_SDS_version.length())
-	{
-		debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(DBG_TXT_SDS011_VERSION_DATE));
-		is_SDS_running = SDS_cmd(PmSensorCmd::Start);
-		delay(250);
-		serialSDS.flush();
-		// Query Version/Date
-		SDS_rawcmd(0x07, 0x00, 0x00);
-		delay(400);
-		const constexpr uint8_t header_cmd_response[2] = {0xAA, 0xC5};
-		while (serialSDS.find(header_cmd_response, sizeof(header_cmd_response)))
-		{
-			uint8_t data[8];
-			unsigned r = serialSDS.readBytes(data, sizeof(data));
-			if (r == sizeof(data) && data[0] == 0x07 && SDS_checksum_valid(data))
-			{
-				char tmp[20];
-				snprintf_P(tmp, sizeof(tmp), PSTR("%02d-%02d-%02d(%02x%02x)"),
-						   data[1], data[2], data[3], data[4], data[5]);
-				last_value_SDS_version = tmp;
-				break;
-			}
-		}
-		debug_outln_verbose(FPSTR(DBG_TXT_END_READING), FPSTR(DBG_TXT_SDS011_VERSION_DATE));
-	}
-
-	return last_value_SDS_version;
-}
 
 /*****************************************************************
  * NPM functions     *
@@ -2190,7 +2050,6 @@ static String NPM_version_date()
 				NPM_data_reader(data, 2);
 				uint16_t NPMversion = word(data[0], data[1]);
 				last_value_NPM_version = String(NPMversion);
-				// debug_outln_verbose(FPSTR(DBG_TXT_END_READING), FPSTR(DBG_TXT_NPM_VERSION_DATE));
 				debug_outln_info(F("Next PM Firmware: "), last_value_NPM_version);
 			}
 			NPM_waiting_for_6 = NPM_REPLY_CHECKSUM_6;
@@ -2334,7 +2193,7 @@ static String NPM_temp_humi()
 /*****************************************************************
  * read BMP280/BME280 sensor values                              *
  *****************************************************************/
-static void fetchSensorBMX280(String &s)
+static void fetchSensorBMX280()
 {
 	const char *const sensor_name = (bmx280.sensorID() == BME280_SENSOR_ID) ? SENSORS_BME280 : SENSORS_BMP280;
 	debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(sensor_name));
@@ -2356,15 +2215,7 @@ static void fetchSensorBMX280(String &s)
 		last_value_BMX280_P = p;
 		if (bmx280.sensorID() == BME280_SENSOR_ID)
 		{
-			add_Value2Json(s, F("BME280_temperature"), FPSTR(DBG_TXT_TEMPERATURE), last_value_BMX280_T);
-			add_Value2Json(s, F("BME280_pressure"), FPSTR(DBG_TXT_PRESSURE), last_value_BMX280_P);
 			last_value_BME280_H = h;
-			add_Value2Json(s, F("BME280_humidity"), FPSTR(DBG_TXT_HUMIDITY), last_value_BME280_H);
-		}
-		else
-		{
-			add_Value2Json(s, F("BMP280_pressure"), FPSTR(DBG_TXT_PRESSURE), last_value_BMX280_P);
-			add_Value2Json(s, F("BMP280_temperature"), FPSTR(DBG_TXT_TEMPERATURE), last_value_BMX280_T);
 		}
 	}
 	debug_outln_info(FPSTR(DBG_TXT_SEP));
@@ -2374,7 +2225,7 @@ static void fetchSensorBMX280(String &s)
 /*****************************************************************
  * read MHZ16 sensor values                              *
  *****************************************************************/
-static void fetchSensorMHZ16(String &s)
+static void fetchSensorMHZ16()
 {
 	const char *const sensor_name = SENSORS_MHZ16;
 	debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(sensor_name));
@@ -2400,7 +2251,6 @@ static void fetchSensorMHZ16(String &s)
 		if (mhz16_val_count == 12)
 		{
 			last_value_MHZ16 = float(mhz16_sum / mhz16_val_count);
-			add_Value2Json(s, F("MHZ16_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ16);
 			debug_outln_info(FPSTR(DBG_TXT_SEP));
 		}
 		else
@@ -2419,7 +2269,7 @@ static void fetchSensorMHZ16(String &s)
 /*****************************************************************
  * read MHZ19 sensor values                              *
  *****************************************************************/
-static void fetchSensorMHZ19(String &s)
+static void fetchSensorMHZ19()
 {
 	const char *const sensor_name = SENSORS_MHZ19;
 	debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(sensor_name));
@@ -2446,7 +2296,6 @@ static void fetchSensorMHZ19(String &s)
 		if (mhz19_val_count >= 12)
 		{
 			last_value_MHZ19 = float(mhz19_sum / mhz19_val_count);
-			add_Value2Json(s, F("MHZ19_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ19);
 			debug_outln_info(FPSTR(DBG_TXT_SEP));
 		}
 		else
@@ -2465,7 +2314,7 @@ static void fetchSensorMHZ19(String &s)
 /*****************************************************************
  * read CCS811 sensor values                              *
  *****************************************************************/
-static void fetchSensorCCS811(String &s)
+static void fetchSensorCCS811()
 {
 	const char *const sensor_name = SENSORS_CCS811;
 	debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(sensor_name));
@@ -2503,7 +2352,6 @@ static void fetchSensorCCS811(String &s)
 		if (ccs811_val_count >= 12)
 		{
 			last_value_CCS811 = float(ccs811_sum / ccs811_val_count);
-			add_Value2Json(s, F("CCS811_VOC"), FPSTR(DBG_TXT_VOCPPB), last_value_CCS811);
 			debug_outln_info(FPSTR(DBG_TXT_SEP));
 		}
 		else
@@ -2520,109 +2368,9 @@ static void fetchSensorCCS811(String &s)
 }
 
 /*****************************************************************
- * read SDS011 sensor values                                     *
- *****************************************************************/
-static void fetchSensorSDS(String &s)
-{
-	if (cfg::sending_intervall_ms > (WARMUPTIME_SDS_MS + READINGTIME_SDS_MS) &&
-		msSince(starttime) < (cfg::sending_intervall_ms - (WARMUPTIME_SDS_MS + READINGTIME_SDS_MS)))
-	{
-		if (is_SDS_running)
-		{
-			is_SDS_running = SDS_cmd(PmSensorCmd::Stop);
-		}
-	}
-	else
-	{
-		if (!is_SDS_running)
-		{
-			is_SDS_running = SDS_cmd(PmSensorCmd::Start);
-			SDS_waiting_for = SDS_REPLY_HDR;
-		}
-
-		while (serialSDS.available() >= SDS_waiting_for)
-		{
-			const uint8_t constexpr hdr_measurement[2] = {0xAA, 0xC0};
-			uint8_t data[8];
-
-			switch (SDS_waiting_for)
-			{
-			case SDS_REPLY_HDR:
-				if (serialSDS.find(hdr_measurement, sizeof(hdr_measurement)))
-					SDS_waiting_for = SDS_REPLY_BODY;
-				break;
-			case SDS_REPLY_BODY:
-				debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(SENSORS_SDS011));
-				if (serialSDS.readBytes(data, sizeof(data)) == sizeof(data) && SDS_checksum_valid(data))
-				{
-					uint32_t pm25_serial = data[0] | (data[1] << 8);
-					uint32_t pm10_serial = data[2] | (data[3] << 8);
-
-					if (msSince(starttime) > (cfg::sending_intervall_ms - READINGTIME_SDS_MS))
-					{
-						sds_pm10_sum += pm10_serial;
-						sds_pm25_sum += pm25_serial;
-						UPDATE_MIN_MAX(sds_pm10_min, sds_pm10_max, pm10_serial);
-						UPDATE_MIN_MAX(sds_pm25_min, sds_pm25_max, pm25_serial);
-						debug_outln_verbose(F("PM10 (sec.) : "), String(pm10_serial / 10.0f));
-						debug_outln_verbose(F("PM2.5 (sec.): "), String(pm25_serial / 10.0f));
-						sds_val_count++;
-					}
-				}
-				debug_outln_verbose(FPSTR(DBG_TXT_END_READING), FPSTR(SENSORS_SDS011));
-				SDS_waiting_for = SDS_REPLY_HDR;
-				break;
-			}
-		}
-	}
-	if (send_now && cfg::sending_intervall_ms >= 120000)
-	{
-		last_value_SDS_P1 = -1;
-		last_value_SDS_P2 = -1;
-		if (sds_val_count > 2)
-		{
-			sds_pm10_sum = sds_pm10_sum - sds_pm10_min - sds_pm10_max;
-			sds_pm25_sum = sds_pm25_sum - sds_pm25_min - sds_pm25_max;
-			sds_val_count = sds_val_count - 2;
-		}
-		if (sds_val_count > 0)
-		{
-			last_value_SDS_P1 = float(sds_pm10_sum) / (sds_val_count * 10.0f);
-			last_value_SDS_P2 = float(sds_pm25_sum) / (sds_val_count * 10.0f);
-			add_Value2Json(s, F("SDS_P1"), F("PM10:  "), last_value_SDS_P1);
-			add_Value2Json(s, F("SDS_P2"), F("PM2.5: "), last_value_SDS_P2);
-			debug_outln_info(FPSTR(DBG_TXT_SEP));
-			if (sds_val_count < 3)
-			{
-				SDS_error_count++;
-			}
-		}
-		else
-		{
-			SDS_error_count++;
-		}
-		sds_pm10_sum = 0;
-		sds_pm25_sum = 0;
-		sds_val_count = 0;
-		sds_pm10_max = 0;
-		sds_pm10_min = 20000;
-		sds_pm25_max = 0;
-		sds_pm25_min = 20000;
-		if ((cfg::sending_intervall_ms > (WARMUPTIME_SDS_MS + READINGTIME_SDS_MS)))
-		{
-
-			if (is_SDS_running)
-			{
-				is_SDS_running = SDS_cmd(PmSensorCmd::Stop);
-			}
-		}
-	}
-}
-
-/*****************************************************************
  * read Tera Sensor Next PM sensor sensor values                 *
  *****************************************************************/
-static void fetchSensorNPM(String &s)
+static void fetchSensorNPM()
 {
 
 	NPM_waiting_for_16 = NPM_REPLY_HEADER_16;
@@ -2731,14 +2479,6 @@ static void fetchSensorNPM(String &s)
 			last_value_NPM_N10 = float(npm_pm10_sum_pcs) / (npm_val_count * 1000.0f);
 			last_value_NPM_N25 = float(npm_pm25_sum_pcs) / (npm_val_count * 1000.0f);
 
-			add_Value2Json(s, F("NPM_P0"), F("PM1: "), last_value_NPM_P0);
-			add_Value2Json(s, F("NPM_P1"), F("PM10:  "), last_value_NPM_P1);
-			add_Value2Json(s, F("NPM_P2"), F("PM2.5: "), last_value_NPM_P2);
-
-			add_Value2Json(s, F("NPM_N1"), F("NC1.0: "), last_value_NPM_N1);
-			add_Value2Json(s, F("NPM_N10"), F("NC10:  "), last_value_NPM_N10);
-			add_Value2Json(s, F("NPM_N25"), F("NC2.5: "), last_value_NPM_N25);
-
 			debug_outln_info(FPSTR(DBG_TXT_SEP));
 		}
 		else
@@ -2765,7 +2505,7 @@ static void fetchSensorNPM(String &s)
 /*****************************************************************
  * read Cairsens sensor values                              *
  *****************************************************************/
-static void fetchSensorCairsens(String &s)
+static void fetchSensorCairsens()
 {
 	const char *const sensor_name = SENSORS_ENVEANO2;
 	debug_outln_verbose(FPSTR(DBG_TXT_START_READING), FPSTR(sensor_name));
@@ -2790,7 +2530,6 @@ static void fetchSensorCairsens(String &s)
 		if (no2_val_count >= 12)
 		{
 			last_value_no2 = CairsensUART::ppbToPpm(CairsensUART::NO2, float(no2_sum / no2_val_count));
-			add_Value2Json(s, F("Cairsens_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
 			debug_outln_info(FPSTR(DBG_TXT_SEP));
 		}
 		else
@@ -2836,11 +2575,20 @@ static void display_values_matrix()
 	float cov_value = -1.0;
 	float no2_value = -1.0;
 
+	float nebuleair_pm10_value = -1.0;
+	float nebuleair_pm25_value = -1.0;
+	float nebuleair_pm01_value = -1.0;
+	float nebuleair_t_value = -128.0;
+	float nebuleair_h_value = -1.0;
+	float nebuleair_p_value = -1.0;
+	float nebuleair_cov_value = -1.0;
+	float nebuleair_no2_value = -1.0;
+
 	double lat_value = -200.0;
 	double lon_value = -200.0;
 	double alt_value = -1000.0;
 	uint8_t screen_count = 0;
-	uint8_t screens[26];
+	uint8_t screens[21];
 	int line_count = 0;
 	//debug_outln_info(F("output values to matrix..."));
 
@@ -2855,14 +2603,6 @@ static void display_values_matrix()
 		nc010_value = last_value_NPM_N1;
 		nc100_value = last_value_NPM_N10;
 		nc025_value = last_value_NPM_N25;
-	}
-
-	if (cfg::sds_read)
-	{
-		pm10_sensor = FPSTR(SENSORS_SDS011);
-		pm25_sensor = FPSTR(SENSORS_SDS011);
-		pm10_value = last_value_SDS_P1;
-		pm25_value = last_value_SDS_P2;
 	}
 
 	if (cfg::bmx280_read)
@@ -2902,7 +2642,7 @@ static void display_values_matrix()
 	}
 
 
-	if ((cfg::sds_read || cfg::npm_read || cfg::bmx280_read || cfg::mhz16_read || cfg::mhz19_read || cfg::ccs811_read || cfg::enveano2_read) && cfg::display_measure)
+	if ((cfg::npm_read || cfg::bmx280_read || cfg::mhz16_read || cfg::mhz19_read || cfg::ccs811_read || cfg::enveano2_read) && cfg::display_measure)
 	{
 		screens[screen_count++] = 0; //Air intérieur
 	}
@@ -2918,49 +2658,54 @@ static void display_values_matrix()
 			screens[screen_count++] = 2;
 	}
 
-	if (cfg::sds_read && cfg::display_measure)
+	if (cfg::npm_read && cfg::display_measure)
 	{
-
 		if (cfg_screen_pm10)
 			screens[screen_count++] = 3; //PM10
 		if (cfg_screen_pm25)
 			screens[screen_count++] = 4; //PM2.5
-	}
-	if (cfg::npm_read && cfg::display_measure)
-	{
-		if (cfg_screen_pm10)
-			screens[screen_count++] = 5; //PM10
-		if (cfg_screen_pm25)
-			screens[screen_count++] = 6; //PM2.5
 		if (cfg_screen_pm01)
-			screens[screen_count++] = 7; //PM1
+			screens[screen_count++] = 5; //PM1
 	}
 
 	if (cfg::ccs811_read && cfg::display_measure)
 	{
 		if (cfg_screen_cov)
-			screens[screen_count++] = 8;
+			screens[screen_count++] = 6;
 	}
 
 	if (cfg::enveano2_read && cfg::display_measure)
 	{
 		if (cfg_screen_enveano2)
-		screens[screen_count++] = 9;
+		screens[screen_count++] = 7;
 	}
 
 	if (cfg::bmx280_read && cfg::display_measure)
 	{
 		if (cfg_screen_temp)
-			screens[screen_count++] = 10; //T
+			screens[screen_count++] = 8; //T
 		if (cfg_screen_humi)
-			screens[screen_count++] = 11; //H
+			screens[screen_count++] = 9; //H
 		if (cfg_screen_press)
-			screens[screen_count++] = 12; //P
+			screens[screen_count++] = 10; //P
 	}
 
+	
+	if (cfg::display_forecast || cfg::show_nebuleair )
+	{
+		screens[screen_count++] = 11; // Air exterieur
+	}
+	
+	if (cfg::show_nebuleair )
+	{
+		screens[screen_count++] = 12; // NebuleAir
+	}
+	
+	
+	
 	if (cfg::display_forecast)
 	{
-		screens[screen_count++] = 13; // Air exterieur
+		screens[screen_count++] = 13; // Ecran prevision avec heure
 		if (cfg_screen_atmo_index)
 			screens[screen_count++] = 14; // Atmo Sud forecast Indice
 		if (cfg_screen_atmo_no2)
@@ -2972,33 +2717,17 @@ static void display_values_matrix()
 		if (cfg_screen_atmo_pm25)
 			screens[screen_count++] = 18; // Atmo Sud forecast PM2.5
 		if (cfg_screen_atmo_so2)
-			screens[screen_count++] = 19; // Atmo Sud forecast PM2.5
+			screens[screen_count++] = 19; // Atmo Sud forecast SO2
 	}
 
-	// if (cfg::display_wifi_info && cfg::has_wifi)
-	// {
-	// 	screens[screen_count++] = 20; // Wifi info
-	// }
-	// if (cfg::display_device_info)
-	// {
-	// 	screens[screen_count++] = 21; // chipID, firmware and count of measurements
-	// 	screens[screen_count++] = 22; // Latitude, longitude, altitude
-	// 	if (cfg::npm_read && cfg::display_measure)
-	// 	{
-	// 		screens[screen_count++] = 23; // info NPM
-	// 	}
-	// }
-	// if (cfg::display_lora_info && cfg::has_lora)
-	// {
-	// 	screens[screen_count++] = 24; // Lora info
-	// }
 
-	screens[screen_count++] = 25; // Logos
+
+	screens[screen_count++] = 20; // Logos
 
 	switch (screens[next_display_count % screen_count])
 	{
 	case 0:
-		if (pm10_value != -1.0 || pm25_value != -1.0 || pm01_value != -1.0 || t_value != -128.0 || h_value != -1.0 || p_value != -1.0 || co2_value != -1.0 || cov_value != -1.0)
+		if (pm10_value != -1.0 || pm25_value != -1.0 || pm01_value != -1.0 || t_value != -128.0 || h_value != -1.0 || p_value != -1.0 || co2_value != -1.0 || cov_value != -1.0 || no2_value != -1.0)
 		{
 			if ((!cfg::has_wifi && !cfg::has_lora) || (cfg::has_wifi && wifi_connection_lost && !cfg::has_lora) || (cfg::has_lora && lora_connection_lost && !cfg::has_wifi))
 			{
@@ -3058,12 +2787,9 @@ static void display_values_matrix()
 				break;
 			}
 		}
-		// else
-		// {
-		// 	act_milli += 5000;
-		// }
+
 		break;
-	case 3: //SDS
+	case 3: 
 		if (pm10_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -3073,7 +2799,7 @@ static void display_values_matrix()
 			display.setTextSize(1);
 			display.print("PM10");
 			display.setFont(&Font4x7Fixed);
-			display.setCursor(display.getCursorX() + 2, 7); //Decaler vers le bas?
+			display.setCursor(display.getCursorX() + 2, 7);
 			display.write(181);
 			display.print("g/m");
 			display.write(179);
@@ -3123,67 +2849,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 5: //NPM
-		if (pm10_value != -1.0)
-		{
-			display.fillScreen(myBLACK);
-			display.setTextColor(myCYAN);
-			display.setFont(NULL);
-			display.setCursor(1, 0);
-			display.setTextSize(1);
-			display.print("PM10");
-			display.setFont(&Font4x7Fixed);
-			display.setCursor(display.getCursorX() + 2, 7);
-			display.write(181);
-			display.print("g/m");
-			display.write(179);
-			drawImage(55, 0, 7, 9, maison);
-			displayColor = interpolateint(pm10_value, 15, 30, 75, gamma_correction);
-			myCUSTOM = display.color565(displayColor.R, displayColor.G, displayColor.B);
-			display.fillRect(50, 9, 14, 14, myCUSTOM);
-			display.setFont(NULL);
-			display.setTextSize(2);
-			display.setTextColor(myWHITE);
-			drawCentreString(String(pm10_value, 0), 0, 9, 14);
-			display.setTextColor(myCUSTOM);
-			messager1(pm10_value, 15, 30, 75);
-		}
-		else
-		{
-			act_milli += 5000;
-		}
-		break;
-	case 6:
-		if (pm25_value != -1.0)
-		{
-			display.fillScreen(myBLACK);
-			display.setTextColor(myCYAN);
-			display.setFont(NULL);
-			display.setCursor(1, 0);
-			display.setTextSize(1);
-			display.print("PM2.5");
-			display.setFont(&Font4x7Fixed);
-			display.setCursor(display.getCursorX() + 2, 7);
-			display.write(181);
-			display.print("g/m");
-			display.write(179);
-			drawImage(55, 0, 7, 9, maison);
-			displayColor = interpolateint(pm25_value, 10, 20, 50, gamma_correction);
-			myCUSTOM = display.color565(displayColor.R, displayColor.G, displayColor.B);
-			display.fillRect(50, 9, 14, 14, myCUSTOM);
-			display.setFont(NULL);
-			display.setTextSize(2);
-			display.setTextColor(myWHITE);
-			drawCentreString(String(pm25_value, 0), 0, 9, 14);
-			display.setTextColor(myCUSTOM);
-			messager1(pm25_value, 10, 20, 50);
-		}
-		else
-		{
-			act_milli += 5000;
-		}
-		break;
-	case 7:
+	case 5:
 		if (pm01_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -3271,7 +2937,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 8:
+	case 6:
 		if (cov_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -3294,7 +2960,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-		case 9:
+		case 7:
 		if (no2_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -3324,7 +2990,7 @@ static void display_values_matrix()
 		break;
 
 
-	case 10:
+	case 8:
 		if (t_value != -128.0)
 		{
 			display.fillScreen(myBLACK);
@@ -3353,7 +3019,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 11:
+	case 9:
 		if (h_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -3382,7 +3048,7 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
-	case 12:
+	case 10:
 		if (p_value != -1.0)
 		{
 			display.fillScreen(myBLACK);
@@ -3405,10 +3071,31 @@ static void display_values_matrix()
 			act_milli += 5000;
 		}
 		break;
+	case 11:
+		if (nebuleair_pm10_value != -1.0 || nebuleair_pm25_value != -1.0 || nebuleair_pm01_value != -1.0 || nebuleair_t_value != -128.0 || nebuleair_h_value != -1.0 || nebuleair_p_value != -1.0 || nebuleair_cov_value != -1.0 || nebuleair_no2_value != -1.0 || atmoSud.multi != -1.0 || atmoSud.no2 != -1.0 || atmoSud.o3 != -1.0 || atmoSud.pm10 != -1.0 || atmoSud.pm2_5 != -1.0 || atmoSud.so2 != -1.0)
+		{
+			drawImage(0, 0, 32, 64, exterieur);
+
+		}
+		else
+		{
+			act_milli += 5000;
+		}
+		break;
+	case 12:
+		if (nebuleair_pm10_value != -1.0 || nebuleair_pm25_value != -1.0 || nebuleair_pm01_value != -1.0 || nebuleair_t_value != -128.0 || nebuleair_h_value != -1.0 || nebuleair_p_value != -1.0 || nebuleair_cov_value != -1.0 || nebuleair_no2_value != -1.0)
+		{
+			drawImage(0, 0, 32, 64, monnebuleair);  //+ AJOUTER 8 ECRANS OU ECRANS PARALLELES
+		}
+		else
+		{
+			act_milli += 5000;
+		}
+		break;
 	case 13:
 		if (atmoSud.multi != -1.0 || atmoSud.no2 != -1.0 || atmoSud.o3 != -1.0 || atmoSud.pm10 != -1.0 || atmoSud.pm2_5 != -1.0 || atmoSud.so2 != -1.0)
 		{
-			drawImage(0, 0, 32, 64, exterieur);
+			drawImage(0, 0, 32, 64, previsions);
 		}
 		else
 		{
@@ -3649,86 +3336,6 @@ static void display_values_matrix()
 		}
 		break;
 	case 20:
-		display.fillScreen(myBLACK);
-		display.setTextColor(myWHITE);
-		display.setFont(&Font4x5Fixed);
-		display.setTextSize(1);
-		display.setCursor(0, 4);
-		display.print("Wifi Info");
-		display.setCursor(0, 10);
-		display.print("IP:");
-		display.print(WiFi.localIP().toString());
-		display.setCursor(0, 16);
-		display.print("SSID:");
-		display.print(WiFi.SSID());
-		display.setCursor(0, 22);
-		display.print("Signal:");
-		display.print(String(calcWiFiSignalQuality(last_signal_strength)));
-		break;
-	case 21:
-		display.fillScreen(myBLACK);
-		display.setTextColor(myWHITE);
-		display.setFont(&Font4x5Fixed);
-		display.setCursor(0, 4);
-		display.print("Device Info");
-		display.setCursor(0, 10);
-		display.print("ID:");
-		display.print(esp_chipid);
-		display.setCursor(0, 16);
-		display.print("FW:");
-		display.print(SOFTWARE_VERSION_SHORT);
-		display.setCursor(0, 22);
-		display.print("Meas.:");
-		display.print(String(count_sends));
-		break;
-	case 22:
-		display.fillScreen(myBLACK);
-		display.setTextColor(myWHITE);
-		display.setFont(&Font4x5Fixed);
-		display.setCursor(0, 4);
-		display.print("GPS");
-		display.setCursor(0, 10);
-		display.print("Latitude:");
-		// display.print(cfg::latitude);
-		display.setCursor(0, 16);
-		display.print("Longitude:");
-		// display.print(cfg::longitude);
-		display.setCursor(0, 22);
-		display.print("Altitude:");
-		// display.print(cfg::height_above_sealevel);
-		break;
-	case 23:
-		if ((pm10_value != -1.0 || pm25_value != -1.0 || pm01_value != -1.0))
-		{
-			display.fillScreen(myBLACK);
-			display.setTextColor(myWHITE);
-			display.setFont(&Font4x7Fixed);
-			display.setCursor(0, 6);
-			display.print("Next PM permanent");
-			display.setCursor(0, 14);
-			display.print("T_NPM / RH_NPM");
-			display.setCursor(0, 22);
-			display.print(current_th_npm);
-		}
-		else
-		{
-			act_milli += 5000;
-		}
-		break;
-	case 24:
-		display.fillScreen(myBLACK);
-		display.setTextColor(myWHITE);
-		display.setFont(&Font4x5Fixed);
-		display.setCursor(0, 4);
-		display.print("LoRaWAN Info");
-		display.setCursor(0, 10);
-		// display.print(cfg::appeui);
-		display.setCursor(0, 16);
-		// display.print(cfg::deveui);
-		display.setCursor(0, 22);
-		// display.print(cfg::appkey);
-		break;
-	case 25:
 		if (has_logo && (logos[logo_index + 1] != 0 && logo_index != 5))
 		{
 			logo_index++;
@@ -3910,15 +3517,6 @@ static void powerOnTestSensors()
 		display.print("Activation");
 		display.setCursor(1, 11);
 		display.print("des sondes");
-	}
-
-	if (cfg::sds_read)
-	{
-		debug_outln_info(F("Read SDS...: "), SDS_version_date());
-		SDS_cmd(PmSensorCmd::ContinuousMode);
-		delay(100);
-		debug_outln_info(F("Stopping SDS011..."));
-		is_SDS_running = SDS_cmd(PmSensorCmd::Stop);
 	}
 
 	if (cfg::npm_read)
@@ -4349,25 +3947,7 @@ void setup()
 	Wire.onReceive(onReceive1);
 	Wire.onRequest(onRequest);
 	Wire.begin((uint8_t)I2C_SLAVE_ADDR);
-	// Wire.begin(I2C_SLAVE_ADDR, I2C_PIN_SDA, I2C_PIN_SCL);
 	Wire1.begin(I2C_PIN_SDA_2, I2C_PIN_SCL_2);  //REVOIRLES PINS
-
-	// bool success = WireSlave.begin(I2C_PIN_SDA, I2C_PIN_SCL, I2C_SLAVE_ADDR);
-    // if (!success) {
-    //     Serial.println("I2C slave init failed");
-    //     while(1) delay(100);
-    // }
-
-	// while (char_count <= 1318){
-	// 	if(char_count == 1){
-	// 		Debug.println("Config is loading...");
-	// 	}
-	// 	if(char_count == 1318){
-	// 		Debug.println("Config is loaded...");
-	// 		Debug.println(config_string);
-	// 		break;
-	// 	}
-	//}
 
 	while(!get_config)
 	{
@@ -4380,60 +3960,60 @@ cfg::has_matrix = config_byte[1];
 cfg::has_wifi = config_byte[2];
 cfg::has_lora = config_byte[3];
 cfg::has_ethernet = config_byte[4];
-cfg::sds_read = config_byte[5];
-cfg::npm_read = config_byte[6];
-cfg::bmx280_read = config_byte[7];
-cfg::mhz16_read = config_byte[8];
-cfg::mhz19_read = config_byte[9];
-cfg::ccs811_read = config_byte[10];
-cfg::enveano2_read = config_byte[11];
-cfg::display_measure = config_byte[12];
-cfg::display_forecast = config_byte[13];
+cfg::npm_read = config_byte[5];
+cfg::bmx280_read = config_byte[6];
+cfg::mhz16_read = config_byte[7];
+cfg::mhz19_read = config_byte[8];
+cfg::ccs811_read = config_byte[9];
+cfg::enveano2_read = config_byte[10];
+cfg::display_measure = config_byte[11];
+cfg::display_forecast = config_byte[12];
 
 String timestringntp;
 
 timestringntp += "20";
+timestringntp += String(config_byte[13]);
+timestringntp += "-";
+if (config_byte[14] + 1 < 10){timestringntp += "0";}
 timestringntp += String(config_byte[14]);
 timestringntp += "-";
-if (config_byte[15] + 1 < 10){timestringntp += "0";}
+if (config_byte[15] < 10){timestringntp += "0";}
 timestringntp += String(config_byte[15]);
-timestringntp += "-";
+timestringntp += "T";
 if (config_byte[16] < 10){timestringntp += "0";}
 timestringntp += String(config_byte[16]);
-timestringntp += "T";
+timestringntp += ":";
 if (config_byte[17] < 10){timestringntp += "0";}
-timestringntp += String(config_byte[18]);
+timestringntp += String(config_byte[17]);
 timestringntp += ":";
 if (config_byte[18] < 10){timestringntp += "0";}
 timestringntp += String(config_byte[18]);
-timestringntp += ":";
-if (config_byte[19] < 10){timestringntp += "0";}
-timestringntp += String(config_byte[19]);
 timestringntp += "Z";
 
-cfg::utc_offset = config_byte[20];
+cfg::utc_offset = config_byte[19];
 
 String current_time;
 current_time += "20";
+current_time += String(config_byte[20]);
+current_time += "-";
+if (config_byte[21] < 10){current_time += "0";}
 current_time += String(config_byte[21]);
 current_time += "-";
 if (config_byte[22] < 10){current_time += "0";}
 current_time += String(config_byte[22]);
-current_time += "-";
+current_time += "T";
 if (config_byte[23] < 10){current_time += "0";}
 current_time += String(config_byte[23]);
-current_time += "T";
+current_time += ":";
 if (config_byte[24] < 10){current_time += "0";}
 current_time += String(config_byte[24]);
 current_time += ":";
 if (config_byte[25] < 10){current_time += "0";}
 current_time += String(config_byte[25]);
-current_time += ":";
-if (config_byte[26] < 10){current_time += "0";}
-current_time += String(config_byte[26]);
 current_time += "Z";
 
-cfg::show_nebuleair = config_byte[27];
+cfg::show_nebuleair = config_byte[26];
+cfg::height_above_sealevel = word(config_byte[27], config_byte[28]);
 
 debug_outln_info(F("ModuleAirV2: " SOFTWARE_VERSION_STR "/"), String(CURRENT_LANG));
 debug_outln_info(F("---- Config ----"));
@@ -4442,7 +4022,6 @@ debug_outln_info(F("Matrix: "), cfg::has_matrix);
 debug_outln_info(F("Wifi: "), cfg::has_wifi);
 debug_outln_info(F("LoRaWAN: "), cfg::has_lora);
 debug_outln_info(F("Ehternet: "), cfg::has_ethernet);
-debug_outln_info(F("SDS: "), cfg::sds_read);
 debug_outln_info(F("NPM: "), cfg::npm_read);
 debug_outln_info(F("BME280: "), cfg::bmx280_read);
 debug_outln_info(F("MHZ16: "), cfg::mhz16_read);
@@ -4455,12 +4034,7 @@ debug_outln_info(F("Time NTP: "), timestringntp);
 debug_outln_info(F("UTC offset: "), cfg::utc_offset);
 debug_outln_info(F("Time RTC: "), current_time);
 debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
-
-
-// while(!get_config){
-//     WireSlave.update();
-//     delay(1);
-// }
+debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 
 
 	if (cfg::has_matrix)
@@ -4473,13 +4047,6 @@ debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
 		serialNPM.begin(115200, SERIAL_8E1, PM_SERIAL_RX, PM_SERIAL_TX);
 		Debug.println("Read Next PM... serialNPM 115200 8E1");
 		serialNPM.setTimeout(400);
-	}
-
-	if (cfg::sds_read) 
-	{
-		serialSDS.begin(9600, SERIAL_8N1, PM_SERIAL_RX, PM_SERIAL_TX);
-		Debug.println("No Next PM... serialSDS 9600 8N1");
-		serialSDS.setTimeout((4 * 12 * 1000) / 9600);
 	}
 
 	if (cfg::mhz16_read || cfg::mhz19_read)
@@ -4514,7 +4081,6 @@ debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
 	if (cfg::has_matrix)
 	{
 		display.fillScreen(myBLACK);
-		// drawImage(36, 6, 20, 27, wifiblue);
 		display.setTextColor(myWHITE);
 		display.setFont(NULL);
 		display.setCursor(1, 0);
@@ -4555,11 +4121,6 @@ debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
 		last_display_millis_matrix = starttime_NPM = starttime;
 	}
 
-	if (cfg::sds_read)
-	{
-		last_display_millis_matrix = starttime_SDS = starttime;
-	}
-
 	if (cfg::mhz16_read)
 	{
 		last_display_millis_matrix = starttime_MHZ16 = starttime;
@@ -4585,25 +4146,37 @@ debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
 	}
 
 
-	if (cfg::has_sdcard && sdcard_found)  //ON A BESOIN  DE RECEVOIR L'HEURE  AJOUTER RTC?
+	if (cfg::has_sdcard && sdcard_found)  
 		{
-			// coordinates = true;
 			listDir(SD, "/", 0);
-
-			file_name = "XXXXXXXX.csv";
-
-			// file_name = String("/") + String(GPSdata.year) + String("_") + String(GPSdata.month) + String("_") + String(GPSdata.day) + String("_") + String(GPSdata.hour) + String("_") + String(GPSdata.minute) + String("_") + String(GPSdata.second) + String(".csv");
+			if(cfg::has_wifi && timestringntp != "2000-00-00T00:00:00Z")
+			{
+			file_name = String("/") + String(config_byte[14]) + String("_") + String(config_byte[15]) + String("_") + String(config_byte[16]) + String("_") + String(config_byte[17]) + String("_") + String(config_byte[18]) + String("_") + String(config_byte[19]) + String(".csv");
+			
 			writeFile(SD, file_name.c_str(), "");
 			appendFile(SD, file_name.c_str(), "Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
 			Debug.println("Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
 			file_created = true;
+			}
+
+			if(!cfg::has_wifi && current_time != "2000-00-00T00:00:00Z")
+			{
+			file_name = String("/") + String(config_byte[21]) + String("_") + String(config_byte[22]) + String("_") + String(config_byte[23]) + String("_") + String(config_byte[24]) + String("_") + String(config_byte[25]) + String("_") + String(config_byte[26]) + String(".csv");
+			
+			writeFile(SD, file_name.c_str(), "");
+			appendFile(SD, file_name.c_str(), "Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
+			Debug.println("Date;NextPM_PM1;NextPM_PM2_5;NextPM_PM10;NextPM_NC1;NextPM_NC2_5;NextPM_NC10;CCS811_COV;Cairsens_NO2;BME280_T;BME280_H;BME280_P;Latitude;Longitude;Altitude;Type\n");
+			file_created = true;
+			}
+
+			if(timestringntp != "2000-00-00T00:00:00Z" && current_time == "2000-00-00T00:00:00Z")
+			{
+				Debug.println("Can't create file!");
+			}
 		}else
 		{
 			Debug.println("Can't create file!");
 		}
-
-
-
 
 	Debug.printf("End of void setup()\n");
 	time_end_setup = millis();
@@ -4611,8 +4184,7 @@ debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
 
 void loop()
 {
-	String result_SDS, result_NPM, result_MHZ16, result_MHZ19, result_CCS811, result_Cairsens;
-
+	
 	unsigned sum_send_time = 0;
 
 	act_micro = micros();
@@ -4633,16 +4205,7 @@ void loop()
 		if ((msSince(starttime_NPM) > SAMPLETIME_NPM_MS && npm_val_count == 0) || send_now)
 		{
 			starttime_NPM = act_milli;
-			fetchSensorNPM(result_NPM);
-		}
-	}
-
-	if (cfg::sds_read)
-	{
-		if ((msSince(starttime_SDS) > SAMPLETIME_SDS_MS) || send_now)
-		{
-			starttime_SDS = act_milli;
-			fetchSensorSDS(result_SDS);
+			fetchSensorNPM();
 		}
 	}
 
@@ -4651,7 +4214,7 @@ void loop()
 		if ((msSince(starttime_MHZ16) > SAMPLETIME_MHZ16_MS && mhz16_val_count < 11) || send_now)
 		{
 			starttime_MHZ16 = act_milli;
-			fetchSensorMHZ16(result_MHZ16);
+			fetchSensorMHZ16();
 		}
 	}
 
@@ -4660,7 +4223,7 @@ void loop()
 		if ((msSince(starttime_MHZ19) > SAMPLETIME_MHZ19_MS && mhz19_val_count < 11) || send_now)
 		{
 			starttime_MHZ19 = act_milli;
-			fetchSensorMHZ19(result_MHZ19);
+			fetchSensorMHZ19();
 		}
 	}
 
@@ -4669,7 +4232,7 @@ void loop()
 		if ((msSince(starttime_CCS811) > SAMPLETIME_CCS811_MS && ccs811_val_count < 11) || send_now)
 		{
 			starttime_CCS811 = act_milli;
-			fetchSensorCCS811(result_CCS811);
+			fetchSensorCCS811();
 		}
 	}
 
@@ -4678,7 +4241,7 @@ void loop()
 		if ((msSince(starttime_Cairsens) > SAMPLETIME_Cairsens_MS && no2_val_count < 11) || send_now)
 		{
 			starttime_Cairsens = act_milli;
-			fetchSensorCairsens(result_Cairsens);
+			fetchSensorCairsens();
 		}
 	}
 
@@ -4691,80 +4254,93 @@ void loop()
 
 	if (send_now && cfg::sending_intervall_ms >= 120000)
 	{
-
 		void *SpActual = NULL;
 		Debug.printf("Free Stack at send_now is: %d \r\n", (uint32_t)&SpActual - (uint32_t)StackPtrEnd);
 
-		if (cfg::has_wifi && !wifi_connection_lost)
-		{
-			last_signal_strength = WiFi.RSSI();
-		}
-		RESERVE_STRING(data, LARGE_STR);
-		data = FPSTR(data_first_part);
-		RESERVE_STRING(result, MED_STR);
+	union int16_2_byte
+	{
+		int16_t temp_int;
+		byte temp_byte[2];
+	} u1;
 
-		if (cfg::sds_read)
-		{
-			data += result_SDS;
-		}
-		if (cfg::npm_read)
-		{
-			data += result_NPM;
-		}
+	if (last_value_NPM_P0 != -1.0)
+		u1.temp_int = (int16_t)round(last_value_NPM_P0 * 10);
+	else
+		u1.temp_int = (int16_t)round(last_value_NPM_P0);
 
-		if (cfg::bmx280_read && (!bmx280_init_failed))
+	data_byte[0] = u1.temp_byte[1];
+	data_byte[1] = u1.temp_byte[0];
+
+	if (last_value_NPM_P1 != -1.0)
+		u1.temp_int = (int16_t)round(last_value_NPM_P1 * 10);
+	else
+		u1.temp_int = (int16_t)round(last_value_NPM_P1);
+
+	data_byte[2] = u1.temp_byte[1];
+	data_byte[3] = u1.temp_byte[0];
+
+	if (last_value_NPM_P2 != -1.0)
+		u1.temp_int = (int16_t)round(last_value_NPM_P2 * 10);
+	else
+		u1.temp_int = (int16_t)round(last_value_NPM_P2);
+
+	data_byte[4] = u1.temp_byte[1];
+	data_byte[5] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_NPM_N1);
+
+	data_byte[6] = u1.temp_byte[1];
+	data_byte[7] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_NPM_N10);
+
+	data_byte[8] = u1.temp_byte[1];
+	data_byte[9] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_NPM_N25);
+
+	data_byte[10] = u1.temp_byte[1];
+	data_byte[11] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_CCS811);
+
+	data_byte[12] = u1.temp_byte[1];
+	data_byte[13] = u1.temp_byte[0];
+
+	if (last_value_BMX280_T != -128.0)
+		u1.temp_int = (int16_t)round(last_value_BMX280_T * 10);
+	else
+		u1.temp_int = (int16_t)round(last_value_BMX280_T);
+
+	data_byte[13] = u1.temp_byte[1];
+	data_byte[24] = u1.temp_byte[0];
+
+	data_byte[15] = (int8_t)round(last_value_BME280_H);
+
+	u1.temp_int = (int16_t)round(last_value_BMX280_P);
+
+	data_byte[16] = u1.temp_byte[1];
+	data_byte[17] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_no2);
+
+	data_byte[18] = u1.temp_byte[1];
+	data_byte[19] = u1.temp_byte[0];
+
+	Debug.printf("HEX values:\n");
+	for (int i = 0; i < LEN_DATA_BYTE - 1; i++)
+	{
+		Debug.printf(" %02x", data_byte[i]);
+		if (i == LEN_DATA_BYTE - 2) 
 		{
-			fetchSensorBMX280(result);
-			data += result;
-			result = emptyString;
+			Debug.printf("\n");
 		}
+	}
 
-		//These values are not sent because not configured in the SC API:
-
-		if (cfg::mhz16_read)
-		{
-			data += result_MHZ16;
-		}
-
-		if (cfg::mhz19_read)
-		{
-			data += result_MHZ19;
-		}
-
-		if (cfg::ccs811_read && (!ccs811_init_failed))
-		{
-			data += result_CCS811;
-		}
-
-		if (cfg::enveano2_read)
-		{
-			data += result_Cairsens;
-		}
-
-		add_Value2Json(data, F("samples"), String(sample_count));
-		add_Value2Json(data, F("min_micro"), String(min_micro));
-		add_Value2Json(data, F("max_micro"), String(max_micro));
-		add_Value2Json(data, F("interval"), String(cfg::sending_intervall_ms));
-		add_Value2Json(data, F("signal"), String(last_signal_strength));
-		// add_Value2Json(data, F("latitude"), String(cfg::latitude));
-		// add_Value2Json(data, F("longitude"), String(cfg::longitude));
-
-		if ((unsigned)(data.lastIndexOf(',') + 1) == data.length())
-		{
-			data.remove(data.length() - 1);
-		}
-		data += "]}";
 
 		yield();
 
-		// only do a restart after finishing sending (Wifi). Befor Lora to avoid conflicts with the LMIC
-		// if (msSince(time_point_device_start_ms) > DURATION_BEFORE_FORCED_RESTART_MS)
-		// {
-		// 	sensor_restart();
-		// }
-
 		// Resetting for next sampling
-		last_data_string = std::move(data);
 		sample_count = 0;
 		last_micro = 0;
 		min_micro = 1000000000;

@@ -33,6 +33,14 @@
 
 #define LEN_ID 14
 
+#define LEN_PAYLOAD_LORA 42
+
+#define LEN_CONFIG_BYTE 29
+#define LEN_DATA_BYTE 29
+#define LEN_REQUEST 20
+
+#define LEN_DOWNLINK 5
+
 // define debug levels
 #define DEBUG_ERROR 1
 #define DEBUG_WARNING 2

@@ -133,7 +133,7 @@ namespace cfg
 
 	// (in)active sensors
 	bool npm_read = NPM_READ;
-	bool bmx280_read = BMX280_READ;
+	bool bme280_read = BME280_READ;
 	bool mhz16_read = MHZ16_READ;
 	bool mhz19_read = MHZ19_READ;
 	bool ccs811_read = CCS811_READ;
@@ -224,7 +224,7 @@ bool spiffs_matrix;
 bool configlorawan[8] = {false, false, false, false, false, false, false, false};
 
 // configlorawan[0] = cfg::npm_read ;
-// configlorawan[1] = cfg::bmx280_read;
+// configlorawan[1] = cfg::bme280_read;
 // configlorawan[2] = cfg::mhz16_read;
 // configlorawan[3] = cfg::mhz19_read;
 // configlorawan[4] = cfg::ccs811_read;
@@ -275,6 +275,27 @@ struct gps
 	String longitude;
 };
 
+/*****************************************************************
+ * NebuleAir data                                            *
+ *****************************************************************/
+
+struct sensordata
+{
+	int16_t pm1;
+	int16_t pm2_5;
+	int16_t pm10;
+	int16_t co2;
+	int16_t no2;
+	int16_t cov;
+	int16_t t;
+	int16_t h;
+	int16_t p;
+};
+
+struct sensordata nebuleair
+{
+	-1, -1, -1, -1, -1, -1, -1, -1,-1
+};
 
 /*****************************************************************
  * Forecast Atmosud                                              *
@@ -331,6 +352,35 @@ int last_sendData_returncode;
 bool wifi_connection_lost;
 bool lora_connection_lost;
 
+uint8_t error; //for wire
+
+/*****************************************************************
+ * dew point helper function                                     *
+ *****************************************************************/
+static float dew_point(const float temperature, const float humidity)
+{
+	float dew_temp;
+	const float k2 = 17.62;
+	const float k3 = 243.12;
+
+	dew_temp = k3 * (((k2 * temperature) / (k3 + temperature)) + log(humidity / 100.0f)) / (((k2 * k3) / (k3 + temperature)) - log(humidity / 100.0f));
+
+	return dew_temp;
+}
+
+/*****************************************************************
+ * Pressure at sea level function                                     *
+ *****************************************************************/
+static float pressure_at_sealevel(const float temperature, const float pressure)
+{
+	float pressure_at_sealevel;
+
+		// pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * readCorrectionOffset(cfg::height_above_sealevel)))), -5.255f);
+		pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * cfg::height_above_sealevel))), -5.255f); //A VERIFIER
+
+
+	return pressure_at_sealevel;
+}
 
 /*****************************************************************
  * Data variables                                      *
@@ -565,7 +615,7 @@ static void readConfig(bool oldconfig = false)
 		}
 		if (boolFromJSON(json, F("bmp280_read")) || boolFromJSON(json, F("bme280_read")))
 		{
-			cfg::bmx280_read = true;
+			cfg::bme280_read = true;
 			rewriteConfig = true;
 		}
 	}
@@ -1025,7 +1075,7 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += FPSTR(INTL_THP_SENSORS);
 	page_content += FPSTR(WEB_B_BR);
 
-	add_form_checkbox_sensor(Config_bmx280_read, FPSTR(INTL_BMX280));
+	add_form_checkbox_sensor(Config_bme280_read, FPSTR(INTL_BMX280));
 
 	// // Paginate page after ~ 1500 Bytes
 	// server.sendContent(page_content);
@@ -1558,21 +1608,17 @@ static void webserver_values()
 		page_content += FPSTR(EMPTY_ROW);
 	}
 
-	if (cfg::bmx280_read)
+	if (cfg::bme280_read)
 	{
-		//REVOIR ICI
-
 		// const char *const sensor_name = (bmx280.sensorID() == BME280_SENSOR_ID) ? SENSORS_BME280 : SENSORS_BMP280;
-		// add_table_t_value(FPSTR(sensor_name), FPSTR(INTL_TEMPERATURE), last_value_BMX280_T);
-		// add_table_value(FPSTR(sensor_name), FPSTR(INTL_PRESSURE), check_display_value(last_value_BMX280_P / 100.0f, (-1 / 100.0f), 2, 0), unit_P);
-		// add_table_value(FPSTR(sensor_name), FPSTR(INTL_PRESSURE_AT_SEALEVEL), last_value_BMX280_P != -1.0f ? String(pressure_at_sealevel(last_value_BMX280_T, last_value_BMX280_P / 100.0f), 2) : "-", unit_P);
-		// if (bmx280.sensorID() == BME280_SENSOR_ID)
-		// {
-		// 	add_table_h_value(FPSTR(sensor_name), FPSTR(INTL_HUMIDITY), last_value_BME280_H);
-		// 	dew_point_temp = dew_point(last_value_BMX280_T, last_value_BME280_H);
-		// 	add_table_value(FPSTR(sensor_name), FPSTR(INTL_DEW_POINT), isnan(dew_point_temp) ? "-" : String(dew_point_temp, 1), unit_T);
-		// }
-		// page_content += FPSTR(EMPTY_ROW);
+		const char *const sensor_name = SENSORS_BME280;
+		add_table_t_value(FPSTR(sensor_name), FPSTR(INTL_TEMPERATURE), last_value_BMX280_T);
+		add_table_value(FPSTR(sensor_name), FPSTR(INTL_PRESSURE), check_display_value(last_value_BMX280_P / 100.0f, (-1 / 100.0f), 2, 0), unit_P);
+		add_table_value(FPSTR(sensor_name), FPSTR(INTL_PRESSURE_AT_SEALEVEL), last_value_BMX280_P != -1.0f ? String(pressure_at_sealevel(last_value_BMX280_T, last_value_BMX280_P / 100.0f), 2) : "-", unit_P);
+		add_table_h_value(FPSTR(sensor_name), FPSTR(INTL_HUMIDITY), last_value_BME280_H);
+		dew_point_temp = dew_point(last_value_BMX280_T, last_value_BME280_H);
+		add_table_value(FPSTR(sensor_name), FPSTR(INTL_DEW_POINT), isnan(dew_point_temp) ? "-" : String(dew_point_temp, 1), unit_T);
+		page_content += FPSTR(EMPTY_ROW);
 	}
 
 	if (cfg::mhz16_read)
@@ -2278,7 +2324,7 @@ static void wifiConfig()
 	debug_outln_info(F("WLANSSID: "), cfg::wlanssid);
 	debug_outln_info(FPSTR(DBG_TXT_SEP));
 	debug_outln_info_bool(F("NPM: "), cfg::npm_read);
-	debug_outln_info_bool(F("BMX: "), cfg::bmx280_read);
+	debug_outln_info_bool(F("BMX: "), cfg::bme280_read);
 	debug_outln_info_bool(F("MHZ16: "), cfg::mhz16_read);
 	debug_outln_info_bool(F("MHZ19: "), cfg::mhz19_read);
 	debug_outln_info_bool(F("CCS811: "), cfg::ccs811_read);
@@ -2367,6 +2413,11 @@ gps getGPS(String id)
 	}
 }
 
+/*****************************************************************
+ * get UTC Offset                                       *
+ *****************************************************************/
+
+
 // https://worldtimeapi.org/api/ip
 
 uint8_t getOffset()
@@ -2410,6 +2461,61 @@ uint8_t getOffset()
 		http.end();
 	}
 
+}
+
+
+/*****************************************************************
+ * get NebuleAir                                      *
+ *****************************************************************/
+
+gps getNebuleAir()
+{
+	String reponseAPI;
+	StaticJsonDocument<JSON_BUFFER_SIZE2> json;
+	char reponseJSON[JSON_BUFFER_SIZE2];
+
+	HTTPClient http;
+	http.setTimeout(20 * 1000);
+
+	String urlAirCarto = "http://data.moduleair.fr/get_nebuleair.php?id=";
+	String serverPath = urlAirCarto + id;
+
+	debug_outln_info(F("Call: "), serverPath);
+	http.begin(serverPath.c_str());
+
+	int httpResponseCode = http.GET();
+
+	if (httpResponseCode > 0)
+	{
+		reponseAPI = http.getString();
+		if (reponseAPI == "null")
+		{
+			return {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+		}
+
+		debug_outln_info(F("Response: "), reponseAPI);
+		strcpy(reponseJSON, reponseAPI.c_str());
+
+		DeserializationError error = deserializeJson(json, reponseJSON);
+
+		if (strcmp(error.c_str(), "Ok") == 0)
+		{
+			return {(int16_t)json["pm1"], (int16_t)json["pm2_5"], (int16_t)json["pm2_5"], (int16_t)json["co2"], (int16_t)json["no2"], (int16_t)json["cov"], (int16_t)json["t"], (int16_t)json["h"], (int16_t)json["p"]};
+		}
+		else
+		{
+			Debug.print(F("deserializeJson() failed: "));
+			Debug.println(error.c_str());
+			return {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+		}
+		http.end();
+	}
+	else
+	{
+		debug_outln_info(F("Failed connecting to AirCarto with error code:"), String(httpResponseCode));
+		return {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+		http.end();
+	}
 }
 
 /*****************************************************************
@@ -2820,6 +2926,8 @@ float getDataAtmoSud(unsigned int type)
 	String sensor_type = "";
 	struct tm timeinfo;
 
+	//SetTimeZone(cfg::utc_offset, 0);  //VERIFIER SI CA MARCHE
+
 	if (!getLocalTime(&timeinfo))
 	{
 		Debug.println("Failed to obtain time");
@@ -3217,12 +3325,10 @@ void onEvent(ev_t ev)
 		||     break;
 		*/
 	case EV_JOIN_FAILED:
-		Debug.println(F("EV_JOIN_FAILED")); //lora_connection_lost = true;
-		//lora_connection_lost = true;
+		Debug.println(F("EV_JOIN_FAILED")); 
 		break;
 	case EV_REJOIN_FAILED:
-		Debug.println(F("EV_REJOIN_FAILED")); //lora_connection_lost = true;
-		//lora_connection_lost = true;
+		Debug.println(F("EV_REJOIN_FAILED")); 
 		break;
 	case EV_TXCOMPLETE:
 		Debug.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
@@ -3243,7 +3349,7 @@ void onEvent(ev_t ev)
 			Debug.print(LMIC.dataLen);
 			Debug.println(F(" bytes of payload"));
 
-			if (cfg::display_forecast)
+			if (cfg::display_forecast || cfg::show_nebuleair)
 			{
 				Debug.println(F("Downlink payload:"));
 				for (int i = 0; i < LMIC.dataLen; i++)
@@ -3633,7 +3739,7 @@ void setup()
 	//Ajouter ethernet + SD
 
 	configlorawan[0] = cfg::npm_read;
-	configlorawan[1] = cfg::bmx280_read;
+	configlorawan[1] = cfg::bme280_read;
 	configlorawan[2] = cfg::mhz16_read;
 	configlorawan[3] = cfg::mhz19_read;
 	configlorawan[4] = cfg::ccs811_read;
@@ -3674,7 +3780,7 @@ void setup()
 	config_byte[3] = cfg::has_lora;
 	config_byte[4] = cfg::has_ethernet;
 	config_byte[5] = cfg::npm_read;
-	config_byte[6] = cfg::bmx280_read;
+	config_byte[6] = cfg::bme280_read;
 	config_byte[7] = cfg::mhz16_read;
 	config_byte[8] = cfg::mhz19_read;
 	config_byte[9] = cfg::ccs811_read;
@@ -3745,7 +3851,7 @@ Wire.beginTransmission(I2C_SLAVE_ADDR);
   Wire.write(config_byte, sizeof(config_byte));
   Debug.println("Config sent!");
 
-uint8_t error = Wire.endTransmission(true);
+error = Wire.endTransmission(true);
 
 delay(15000); //the other esp32 must have created values before the fisrt request 
 
@@ -3771,6 +3877,7 @@ void loop()
 // Debug.print(":");
 // Debug.println(now.second(), DEC);
 
+	String result_NPM, result_MHZ16, result_MHZ19, result_CCS811, result_Cairsens;;
 
 	unsigned sum_send_time = 0;
 
@@ -3814,63 +3921,69 @@ void loop()
 		Wire.readBytes(request_byte, error);
 		}
 
+last_value_NPM_P0 = (float)(word(request_byte[0], request_byte[1])/10);
+last_value_NPM_P1 = (float)(word(request_byte[2], request_byte[3])/10);
+last_value_NPM_P2 = (float)(word(request_byte[4], request_byte[5])/10);
+last_value_NPM_N1 = (float)(word(request_byte[6], request_byte[7]));
+last_value_NPM_N10 = (float)(word(request_byte[8], request_byte[9]));
+last_value_NPM_N25 = (float)(word(request_byte[10], request_byte[11]));
+last_value_MHZ16 = (float)(word(request_byte[12], request_byte[13]));
+last_value_MHZ19 = (float)(word(request_byte[14], request_byte[15]));
+last_value_CCS811 = (float)(word(request_byte[16], request_byte[17]));
+last_value_BMX280_T = (float)(word(request_byte[18], request_byte[19])/10);
+last_value_BME280_H = (float)request_byte[20];
+last_value_BMX280_P = (float)(word(request_byte[21], request_byte[22])/10);
+last_value_no2 = (float)(word(request_byte[23], request_byte[24])/10);
 
-		//GET FROM I2C
+add_Value2Json(result_NPM, F("NPM_P0"), F("PM1: "), last_value_NPM_P0);
+add_Value2Json(result_NPM, F("NPM_P1"), F("PM10:  "), last_value_NPM_P1);
+add_Value2Json(result_NPM, F("NPM_P2"), F("PM2.5: "), last_value_NPM_P2);
+add_Value2Json(result_NPM, F("NPM_N1"), F("NC1.0: "), last_value_NPM_N1);
+add_Value2Json(result_NPM, F("NPM_N10"), F("NC10:  "), last_value_NPM_N10);
+add_Value2Json(result_NPM, F("NPM_N25"), F("NC2.5: "), last_value_NPM_N25);
+add_Value2Json(result_MHZ16, F("MHZ16_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ16);
+add_Value2Json(result_MHZ19, F("MHZ19_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ19);
+add_Value2Json(result_CCS811, F("CCS811_VOC"), FPSTR(DBG_TXT_VOCPPB), last_value_CCS811);
+add_Value2Json(result, F("BME280_temperature"), FPSTR(DBG_TXT_TEMPERATURE), last_value_BMX280_T);
+add_Value2Json(result, F("BME280_pressure"), FPSTR(DBG_TXT_PRESSURE), last_value_BMX280_P);
+add_Value2Json(result, F("BME280_humidity"), FPSTR(DBG_TXT_HUMIDITY), last_value_BME280_H);
+add_Value2Json(result_Cairsens, F("Cairsens_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
 
-		// if (cfg::sds_read)
-		// {
-		// 	data += result_SDS;
-		// 	if (cfg::has_wifi && !wifi_connection_lost)
-		// 	{
-		// 		sum_send_time += sendSensorCommunity(result_SDS, SDS_API_PIN, FPSTR(SENSORS_SDS011), "SDS_");
-		// 	}
-		// }
-		// if (cfg::npm_read)
-		// {
-		// 	data += result_NPM;
-		// 	if (cfg::has_wifi && !wifi_connection_lost)
-		// 	{
-		// 		sum_send_time += sendSensorCommunity(result_NPM, NPM_API_PIN, FPSTR(SENSORS_NPM), "NPM_");
-		// 	}
-		// }
+if (cfg::npm_read)
+{
+	data += result_NPM;
+	if (cfg::has_wifi && !wifi_connection_lost)
+	{
+		sum_send_time += sendSensorCommunity(result_NPM, NPM_API_PIN, FPSTR(SENSORS_NPM), "NPM_");
+	}
+}
 
-		// if (cfg::bmx280_read && (!bmx280_init_failed))
-		// {
-		// 	fetchSensorBMX280(result);
-		// 	data += result;
-		// 	if (bmx280.sensorID() == BME280_SENSOR_ID)
-		// 	{
-		// 		if (cfg::has_wifi && !wifi_connection_lost)
-		// 		{
-		// 			sum_send_time += sendSensorCommunity(result, BME280_API_PIN, FPSTR(SENSORS_BME280), "BME280_");
-		// 		}
-		// 	}
-		// 	else
-		// 	{
-		// 		if (cfg::has_wifi && !wifi_connection_lost)
-		// 		{
-		// 			sum_send_time += sendSensorCommunity(result, BMP280_API_PIN, FPSTR(SENSORS_BMP280), "BMP280_");
-		// 		}
-		// 	}
-		// 	result = emptyString;
-		// }
+if (cfg::bme280_read)
+{
+	data += result;
+		if (cfg::has_wifi && !wifi_connection_lost)
+		{
+			sum_send_time += sendSensorCommunity(result, BME280_API_PIN, FPSTR(SENSORS_BME280), "BME280_");
+		}
+	result = emptyString;
+}
 
-		// //These values are not sent because not configured in the SC API:
+//These values are not sent because not configured in the SC API:
 
-		// if (cfg::mhz16_read)
-		// {
-		// 	data += result_MHZ16;
-		// }
+if (cfg::mhz16_read)
+{
+	data += result_MHZ16;
+}
 
-		// if (cfg::mhz19_read)
-		// {
-		// 	data += result_MHZ19;
-		// }
+if (cfg::mhz19_read)
+{
+	data += result_MHZ19;
+}
 
-		// if (cfg::ccs811_read && (!ccs811_init_failed))
-		// {
-		// 	data += result_CCS811;
-		// }
+if (cfg::ccs811_read && (!ccs811_init_failed))
+{
+	data += result_CCS811;
+}
 
 		add_Value2Json(data, F("samples"), String(sample_count));
 		add_Value2Json(data, F("min_micro"), String(min_micro));
@@ -4082,6 +4195,17 @@ void loop()
 				break;
 			}
 		}
+
+		if (cfg::show_nebuleair && cfg::has_wifi && !wifi_connection_lost) //the reception through LoRaWAN downlink is automatically done
+		{
+			getNebuleAir();
+		}
+		else
+		{
+			nebuleair{-1, -1, -1, -1, -1, -1, -1, -1,-1};
+		}
+
+
 
 		if (cfg::has_lora && lorachip)
 		{

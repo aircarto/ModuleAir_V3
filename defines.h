@@ -37,7 +37,7 @@
 
 #define LEN_CONFIG_BYTE 29
 #define LEN_DATA_BYTE 29
-#define LEN_REQUEST 20
+#define LEN_REQUEST 25
 
 #define LEN_DOWNLINK 5
 

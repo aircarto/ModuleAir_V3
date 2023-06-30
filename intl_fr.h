@@ -139,4 +139,3 @@ const char INTL_ETHERNET_ACTIVATION[] = "Activer la communication Ethernet";
 #define INTL_SECOND "Secondes"
 
 #include "./aircarto-logo-common.h"
-#include "./logos-custom.h"

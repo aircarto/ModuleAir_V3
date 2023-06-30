@@ -15,7 +15,7 @@ String		fs_ssid
 Password	fs_pwd
 Bool		www_basicauth_enabled
 Bool		npm_read
-Bool		bmx280_read
+Bool		bme280_read
 UInt		height_above_sealevel
 Bool		mhz16_read
 Bool		mhz19_read

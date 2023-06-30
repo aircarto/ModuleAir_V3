@@ -4302,32 +4302,42 @@ void loop()
 	data_byte[10] = u1.temp_byte[1];
 	data_byte[11] = u1.temp_byte[0];
 
-	u1.temp_int = (int16_t)round(last_value_CCS811);
+	u1.temp_int = (int16_t)round(last_value_MHZ16);
 
 	data_byte[12] = u1.temp_byte[1];
 	data_byte[13] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_MHZ19);
+
+	data_byte[14] = u1.temp_byte[1];
+	data_byte[15] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_CCS811);
+
+	data_byte[16] = u1.temp_byte[1];
+	data_byte[17] = u1.temp_byte[0];
 
 	if (last_value_BMX280_T != -128.0)
 		u1.temp_int = (int16_t)round(last_value_BMX280_T * 10);
 	else
 		u1.temp_int = (int16_t)round(last_value_BMX280_T);
 
-	data_byte[13] = u1.temp_byte[1];
-	data_byte[24] = u1.temp_byte[0];
-
-	data_byte[15] = (int8_t)round(last_value_BME280_H);
-
-	u1.temp_int = (int16_t)round(last_value_BMX280_P);
-
-	data_byte[16] = u1.temp_byte[1];
-	data_byte[17] = u1.temp_byte[0];
-
-	u1.temp_int = (int16_t)round(last_value_no2);
-
 	data_byte[18] = u1.temp_byte[1];
 	data_byte[19] = u1.temp_byte[0];
 
-	Debug.printf("HEX values:\n");
+	data_byte[20] = (int8_t)round(last_value_BME280_H);
+
+	u1.temp_int = (int16_t)round(last_value_BMX280_P);
+
+	data_byte[21] = u1.temp_byte[1];
+	data_byte[22] = u1.temp_byte[0];
+
+	u1.temp_int = (int16_t)round(last_value_no2);
+
+	data_byte[23] = u1.temp_byte[1];
+	data_byte[24] = u1.temp_byte[0];
+
+	Debug.printf("HEX values data:\n");
 	for (int i = 0; i < LEN_DATA_BYTE - 1; i++)
 	{
 		Debug.printf(" %02x", data_byte[i]);

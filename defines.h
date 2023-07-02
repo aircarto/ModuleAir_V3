@@ -36,8 +36,8 @@
 #define LEN_PAYLOAD_LORA 42
 
 #define LEN_CONFIG_BYTE 29
-#define LEN_DATA_BYTE 29
-#define LEN_REQUEST 25
+#define LEN_DATA_BYTE 68
+#define LEN_REQUEST 52
 
 #define LEN_DOWNLINK 5
 

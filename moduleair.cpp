@@ -281,20 +281,19 @@ struct gps
 
 struct sensordata
 {
-	int16_t pm1;
-	int16_t pm2_5;
-	int16_t pm10;
-	int16_t co2;
-	int16_t no2;
-	int16_t cov;
-	int16_t t;
-	int16_t h;
-	int16_t p;
+	float pm1;
+	float pm2_5;
+	float pm10;
+	float no2;
+	float cov;
+	float t;
+	float h;
+	float p;
 };
 
 struct sensordata nebuleair
 {
-	-1, -1, -1, -1, -1, -1, -1, -1,-1
+	-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0
 };
 
 /*****************************************************************
@@ -312,11 +311,38 @@ struct forecast
 
 struct forecast atmoSud
 {
-	- 1.0, -1.0, -1.0, -1.0, -1.0, -1.0
+	-1.0, -1.0, -1.0, -1.0, -1.0, -1.0
 };
 
 uint8_t arrayDownlink[LEN_DOWNLINK];
 uint8_t forecast_selector;
+
+/*****************************************************************
+ * I2C requests                                       *
+ *****************************************************************/
+
+
+byte config_byte[LEN_CONFIG_BYTE] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+byte data_byte[LEN_DATA_BYTE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+byte request_byte[LEN_REQUEST];
+
+union int16_2_byte
+{
+	uint16_t temp_uint16;
+	byte temp_byte[2];
+} u_uint16;
+
+union float_2_byte
+{
+	float temp_float;
+	byte temp_byte[4];
+} u_float;
+
+union uint16_2_byte
+{
+	int16_t temp_int16;
+	byte temp_byte[2];
+} u_int16;
 
 /*****************************************************************
  * Time                                       *
@@ -2468,7 +2494,7 @@ uint8_t getOffset()
  * get NebuleAir                                      *
  *****************************************************************/
 
-gps getNebuleAir()
+sensordata getNebuleAir(char* id)
 {
 	String reponseAPI;
 	StaticJsonDocument<JSON_BUFFER_SIZE2> json;
@@ -2478,7 +2504,7 @@ gps getNebuleAir()
 	http.setTimeout(20 * 1000);
 
 	String urlAirCarto = "http://data.moduleair.fr/get_nebuleair.php?id=";
-	String serverPath = urlAirCarto + id;
+	String serverPath = urlAirCarto + String(id);
 
 	debug_outln_info(F("Call: "), serverPath);
 	http.begin(serverPath.c_str());
@@ -2490,7 +2516,7 @@ gps getNebuleAir()
 		reponseAPI = http.getString();
 		if (reponseAPI == "null")
 		{
-			return {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+			return {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
 		}
 
 		debug_outln_info(F("Response: "), reponseAPI);
@@ -2500,20 +2526,20 @@ gps getNebuleAir()
 
 		if (strcmp(error.c_str(), "Ok") == 0)
 		{
-			return {(int16_t)json["pm1"], (int16_t)json["pm2_5"], (int16_t)json["pm2_5"], (int16_t)json["co2"], (int16_t)json["no2"], (int16_t)json["cov"], (int16_t)json["t"], (int16_t)json["h"], (int16_t)json["p"]};
+			return {(float)json["pm1"], (float)json["pm2_5"], (float)json["pm2_5"], (float)json["no2"], (float)json["cov"], (float)json["t"], (float)json["h"], (float)json["p"]};
 		}
 		else
 		{
 			Debug.print(F("deserializeJson() failed: "));
 			Debug.println(error.c_str());
-			return {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+			return {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
 		}
 		http.end();
 	}
 	else
 	{
 		debug_outln_info(F("Failed connecting to AirCarto with error code:"), String(httpResponseCode));
-		return {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+		return {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
 		http.end();
 	}
 }
@@ -3764,16 +3790,6 @@ void setup()
 	rtc_ok = true;
 	}
 
-	byte config_byte[LEN_CONFIG_BYTE] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	byte data_byte[LEN_DATA_BYTE];
-	byte request_byte[LEN_REQUEST];
-
-	union int16_2_byte
-	{
-		unsigned temp_uint16;
-		byte temp_byte[2];
-	} uconf;
-
 	config_byte[0] = cfg::has_sdcard;
 	config_byte[1] = cfg::has_matrix;
 	config_byte[2] = cfg::has_wifi;
@@ -3839,10 +3855,10 @@ void setup()
 
 config_byte[26] = cfg::show_nebuleair;
 
-uconf.temp_uint16 = (uint16_t)(cfg::height_above_sealevel);
+u_uint16.temp_uint16 = (uint16_t)(cfg::height_above_sealevel);
 
-config_byte[27] = uconf.temp_byte[1];
-config_byte[28] = uconf.temp_byte[0];
+config_byte[27] = u_uint16.temp_byte[1];
+config_byte[28] = u_uint16.temp_byte[0];
 
 delay(5000); //wait
 
@@ -3921,19 +3937,96 @@ void loop()
 		Wire.readBytes(request_byte, error);
 		}
 
-last_value_NPM_P0 = (float)(word(request_byte[0], request_byte[1])/10);
-last_value_NPM_P1 = (float)(word(request_byte[2], request_byte[3])/10);
-last_value_NPM_P2 = (float)(word(request_byte[4], request_byte[5])/10);
-last_value_NPM_N1 = (float)(word(request_byte[6], request_byte[7]));
-last_value_NPM_N10 = (float)(word(request_byte[8], request_byte[9]));
-last_value_NPM_N25 = (float)(word(request_byte[10], request_byte[11]));
-last_value_MHZ16 = (float)(word(request_byte[12], request_byte[13]));
-last_value_MHZ19 = (float)(word(request_byte[14], request_byte[15]));
-last_value_CCS811 = (float)(word(request_byte[16], request_byte[17]));
-last_value_BMX280_T = (float)(word(request_byte[18], request_byte[19])/10);
-last_value_BME280_H = (float)request_byte[20];
-last_value_BMX280_P = (float)(word(request_byte[21], request_byte[22])/10);
-last_value_no2 = (float)(word(request_byte[23], request_byte[24])/10);
+u_float.temp_byte[0] = request_byte[0];
+u_float.temp_byte[1] = request_byte[1];
+u_float.temp_byte[2] = request_byte[2];
+u_float.temp_byte[3] = request_byte[3];
+
+last_value_NPM_P0 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[4];
+u_float.temp_byte[1] = request_byte[5];
+u_float.temp_byte[2] = request_byte[6];
+u_float.temp_byte[3] = request_byte[7];
+
+last_value_NPM_P1 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[8];
+u_float.temp_byte[1] = request_byte[9];
+u_float.temp_byte[2] = request_byte[10];
+u_float.temp_byte[3] = request_byte[11];
+
+last_value_NPM_P2 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[12];
+u_float.temp_byte[1] = request_byte[13];
+u_float.temp_byte[2] = request_byte[14];
+u_float.temp_byte[3] = request_byte[15];
+
+last_value_NPM_N1 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[16];
+u_float.temp_byte[1] = request_byte[17];
+u_float.temp_byte[2] = request_byte[18];
+u_float.temp_byte[3] = request_byte[19];
+
+last_value_NPM_N10 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[20];
+u_float.temp_byte[1] = request_byte[21];
+u_float.temp_byte[2] = request_byte[22];
+u_float.temp_byte[3] = request_byte[23];
+
+last_value_NPM_N25 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[24];
+u_float.temp_byte[1] = request_byte[25];
+u_float.temp_byte[2] = request_byte[26];
+u_float.temp_byte[3] = request_byte[27];
+
+last_value_MHZ16 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[28];
+u_float.temp_byte[1] = request_byte[29];
+u_float.temp_byte[2] = request_byte[30];
+u_float.temp_byte[3] = request_byte[31];
+
+last_value_MHZ19 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[32];
+u_float.temp_byte[1] = request_byte[33];
+u_float.temp_byte[2] = request_byte[34];
+u_float.temp_byte[3] = request_byte[35];
+
+last_value_CCS811 = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[36];
+u_float.temp_byte[1] = request_byte[37];
+u_float.temp_byte[2] = request_byte[38];
+u_float.temp_byte[3] = request_byte[39];
+
+last_value_BMX280_T = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[40];
+u_float.temp_byte[1] = request_byte[41];
+u_float.temp_byte[2] = request_byte[42];
+u_float.temp_byte[3] = request_byte[43];
+
+last_value_BME280_H = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[44];
+u_float.temp_byte[1] = request_byte[45];
+u_float.temp_byte[2] = request_byte[46];
+u_float.temp_byte[3] = request_byte[47];
+
+last_value_BMX280_P = u_float.temp_float;
+
+u_float.temp_byte[0] = request_byte[48];
+u_float.temp_byte[1] = request_byte[49];
+u_float.temp_byte[2] = request_byte[50];
+u_float.temp_byte[3] = request_byte[51];
+
+last_value_no2 = u_float.temp_float;
 
 add_Value2Json(result_NPM, F("NPM_P0"), F("PM1: "), last_value_NPM_P0);
 add_Value2Json(result_NPM, F("NPM_P1"), F("PM10:  "), last_value_NPM_P1);
@@ -3980,7 +4073,7 @@ if (cfg::mhz19_read)
 	data += result_MHZ19;
 }
 
-if (cfg::ccs811_read && (!ccs811_init_failed))
+if (cfg::ccs811_read)
 {
 	data += result_CCS811;
 }
@@ -4198,16 +4291,186 @@ if (cfg::ccs811_read && (!ccs811_init_failed))
 
 		if (cfg::show_nebuleair && cfg::has_wifi && !wifi_connection_lost) //the reception through LoRaWAN downlink is automatically done
 		{
-			getNebuleAir();
+			nebuleair = getNebuleAir(cfg::id_nebuleair);
 		}
 		else
 		{
-			nebuleair{-1, -1, -1, -1, -1, -1, -1, -1,-1};
+			nebuleair = {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
 		}
 
 
+		u_float.temp_float = atmoSud.multi;
 
-		if (cfg::has_lora && lorachip)
+		data_byte[0] = u_float.temp_byte[0];
+		data_byte[1] = u_float.temp_byte[1];
+		data_byte[2] = u_float.temp_byte[2];
+		data_byte[3] = u_float.temp_byte[3];
+
+		u_float.temp_float = atmoSud.no2;
+
+		data_byte[4] = u_float.temp_byte[0];
+		data_byte[5] = u_float.temp_byte[1];
+		data_byte[6] = u_float.temp_byte[2];
+		data_byte[7] = u_float.temp_byte[3];
+
+		u_float.temp_float = atmoSud.o3;
+
+		data_byte[8] = u_float.temp_byte[0];
+		data_byte[9] = u_float.temp_byte[1];
+		data_byte[10] = u_float.temp_byte[2];
+		data_byte[11] = u_float.temp_byte[3];
+		
+		u_float.temp_float = atmoSud.pm10;
+
+		data_byte[12] = u_float.temp_byte[0];
+		data_byte[13] = u_float.temp_byte[1];
+		data_byte[14] = u_float.temp_byte[2];
+		data_byte[15] = u_float.temp_byte[3];
+
+		u_float.temp_float = atmoSud.pm2_5;
+		
+		data_byte[16] = u_float.temp_byte[0];
+		data_byte[17] = u_float.temp_byte[1];
+		data_byte[18] = u_float.temp_byte[2];
+		data_byte[19] = u_float.temp_byte[3];
+
+		u_float.temp_float = atmoSud.so2;
+
+		
+		data_byte[20] = u_float.temp_byte[0];
+		data_byte[21] = u_float.temp_byte[1];
+		data_byte[22] = u_float.temp_byte[2];
+		data_byte[23] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.pm1;
+
+		data_byte[24] = u_float.temp_byte[0];
+		data_byte[25] = u_float.temp_byte[1];
+		data_byte[26] = u_float.temp_byte[2];
+		data_byte[27] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.pm2_5;
+
+		data_byte[28] = u_float.temp_byte[0];
+		data_byte[29] = u_float.temp_byte[1];
+		data_byte[30] = u_float.temp_byte[2];
+		data_byte[31] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.pm10;
+
+		data_byte[32] = u_float.temp_byte[0];
+		data_byte[33] = u_float.temp_byte[1];
+		data_byte[34] = u_float.temp_byte[2];
+		data_byte[35] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.no2;
+
+		data_byte[36] = u_float.temp_byte[0];
+		data_byte[37] = u_float.temp_byte[1];
+		data_byte[38] = u_float.temp_byte[2];
+		data_byte[39] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.cov;
+
+		data_byte[40] = u_float.temp_byte[0];
+		data_byte[41] = u_float.temp_byte[1];
+		data_byte[42] = u_float.temp_byte[2];
+		data_byte[43] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.t;
+
+		data_byte[44] = u_float.temp_byte[0];
+		data_byte[45] = u_float.temp_byte[1];
+		data_byte[46] = u_float.temp_byte[2];
+		data_byte[47] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.h;
+
+		data_byte[48] = u_float.temp_byte[0];
+		data_byte[49] = u_float.temp_byte[1];
+		data_byte[50] = u_float.temp_byte[2];
+		data_byte[51] = u_float.temp_byte[3];
+
+u_float.temp_float = nebuleair.p;
+
+		data_byte[52] = u_float.temp_byte[0];
+		data_byte[53] = u_float.temp_byte[1];
+		data_byte[54] = u_float.temp_byte[2];
+		data_byte[55] = u_float.temp_byte[3];
+
+	if (!getLocalTime(&timeinfo))
+	{
+		u_uint16.temp_uint16 = 2000;
+
+		data_byte[56] = u_uint16.temp_byte[1];
+		data_byte[57] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = 0;
+
+		data_byte[58] = u_uint16.temp_byte[1];
+		data_byte[59] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = 0;
+
+		data_byte[60] = u_uint16.temp_byte[1];
+		data_byte[61] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = 0;
+
+		data_byte[62] = u_uint16.temp_byte[1];
+		data_byte[63] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = 0;
+
+		data_byte[64] = u_uint16.temp_byte[1];
+		data_byte[65] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = 0;
+
+		data_byte[66] = u_uint16.temp_byte[1];
+		data_byte[67] = u_uint16.temp_byte[0];
+
+	}else{
+
+		u_uint16.temp_uint16 = (uint16_t)(2000 + timeinfo.tm_year-100);
+
+		data_byte[56] = u_uint16.temp_byte[1];
+		data_byte[57] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_mon + 1);
+
+		data_byte[58] = u_uint16.temp_byte[1];
+		data_byte[59] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_mday);
+
+		data_byte[60] = u_uint16.temp_byte[1];
+		data_byte[61] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_hour + cfg::utc_offset);  //ATTENTION au CAST
+
+		data_byte[62] = u_uint16.temp_byte[1];
+		data_byte[63] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_min);
+
+		data_byte[64] = u_uint16.temp_byte[1];
+		data_byte[65] = u_uint16.temp_byte[0];
+
+		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_sec);
+
+		data_byte[66] = u_uint16.temp_byte[1];
+		data_byte[67] = u_uint16.temp_byte[0];
+	}
+
+Wire.beginTransmission(I2C_SLAVE_ADDR);
+
+  Wire.write(data_byte, sizeof(data_byte));
+  Debug.println("Data matrix sent!");
+
+error = Wire.endTransmission(true);
+
+if (cfg::has_lora && lorachip)
 		{
 			prepareTxFrame();
 			// do_send(&sendjob);

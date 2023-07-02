@@ -4,7 +4,8 @@
 #define HOSTNAME_BASE "moduleair-"
 
 #define LEN_CONFIG_BYTE 29
-#define LEN_DATA_BYTE 25
+#define LEN_DATA_BYTE 52
+#define LEN_MATRIX_BYTE 68
 
 // define debug levels
 #define DEBUG_ERROR 1

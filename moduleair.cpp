@@ -100,33 +100,6 @@ bool moduleair_selftest_failed = false;
 bool sdcard_found = false;
 bool file_created = false;
 
-
-//I2C
-
-// void receiveEvent(int howMany);
-
-bool get_config = false;
-
-uint32_t i = 0;
-
-void onRequest(){
-  Wire.print(i++);
-  Wire.print(" Packets.");
-  Debug.println("onRequest");
-}
-
-byte config_byte[LEN_CONFIG_BYTE];
-byte data_byte[LEN_DATA_BYTE];
-
-
-void onReceive1(int len){
-  while(Wire.available()){
-	Wire.readBytes(config_byte,LEN_CONFIG_BYTE);
-  }
-	Debug.println(len);
-	get_config = true;
-}
-
 namespace cfg
 {
 	unsigned debug = 5;  //default
@@ -1670,6 +1643,27 @@ struct gps
 };
 
 /*****************************************************************
+ * NebuleAir data                                            *
+ *****************************************************************/
+
+struct sensordata
+{
+	float pm1;
+	float pm2_5;
+	float pm10;
+	float no2;
+	float cov;
+	float t;
+	float h;
+	float p;
+};
+
+struct sensordata nebuleair
+{
+	-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0
+};
+
+/*****************************************************************
  * Forecast Atmosud                                              *
  *****************************************************************/
 struct forecast
@@ -1688,6 +1682,25 @@ struct forecast atmoSud
 };
 
 uint8_t forecast_selector;
+
+
+/*****************************************************************
+ * Time                                             *
+ *****************************************************************/
+struct timedata
+{
+	uint16_t year;
+	uint16_t month;
+	uint16_t day;
+	uint16_t hour;
+	uint16_t minute;
+	uint16_t second;
+};
+
+struct timedata matrix_time
+{
+	2000, 0, 0, 0, 0, 0
+};
 
 /*****************************************************************
  * Serial declarations                                           *
@@ -2583,6 +2596,13 @@ static void display_values_matrix()
 	float nebuleair_p_value = -1.0;
 	float nebuleair_cov_value = -1.0;
 	float nebuleair_no2_value = -1.0;
+
+	uint16_t year;
+	uint16_t month;
+	uint16_t day;
+	uint16_t hour;
+	uint16_t minute;
+	uint16_t second;
 
 	double lat_value = -200.0;
 	double lon_value = -200.0;
@@ -3921,6 +3941,152 @@ static void testFileIO(fs::FS &fs, const char *path)
 	file.close();
 }
 
+/*****************************************************************
+ * I2C                                                  *
+ *****************************************************************/
+
+bool get_config = false;
+
+uint32_t i = 0;
+
+byte config_byte[LEN_CONFIG_BYTE];
+byte data_byte[LEN_DATA_BYTE];
+byte matrix_byte[LEN_MATRIX_BYTE] = {0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0x07, 0xD0, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+
+void onRequest(){
+  Wire.write(data_byte, sizeof(data_byte));
+  Debug.println("Config sent!");
+  Debug.println("onRequest");
+}
+
+void onReceive1(int len){
+  while(Wire.available()){
+	Wire.readBytes(config_byte,LEN_CONFIG_BYTE);
+  }
+	Debug.println(len);
+	get_config = true;
+}
+
+void onReceive2(int len){
+  while(Wire.available()){
+	Wire.readBytes(matrix_byte,LEN_MATRIX_BYTE);
+  }
+	Debug.println(len);
+
+union float_2_byte
+{
+	float temp_float;
+	byte temp_byte[4];
+} u_float;
+
+
+u_float.temp_byte[0] = matrix_byte[0];
+u_float.temp_byte[1] = matrix_byte[1];
+u_float.temp_byte[2] = matrix_byte[2];
+u_float.temp_byte[3] = matrix_byte[3];
+
+atmoSud.multi = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[4];
+u_float.temp_byte[1] = matrix_byte[5];
+u_float.temp_byte[2] = matrix_byte[6];
+u_float.temp_byte[3] = matrix_byte[7];
+
+atmoSud.no2 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[8];
+u_float.temp_byte[1] = matrix_byte[9];
+u_float.temp_byte[2] = matrix_byte[10];
+u_float.temp_byte[3] = matrix_byte[11];
+
+atmoSud.o3 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[12];
+u_float.temp_byte[1] = matrix_byte[13];
+u_float.temp_byte[2] = matrix_byte[14];
+u_float.temp_byte[3] = matrix_byte[15];
+
+atmoSud.pm10 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[16];
+u_float.temp_byte[1] = matrix_byte[17];
+u_float.temp_byte[2] = matrix_byte[18];
+u_float.temp_byte[3] = matrix_byte[19];
+
+atmoSud.pm2_5 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[20];
+u_float.temp_byte[1] = matrix_byte[21];
+u_float.temp_byte[2] = matrix_byte[22];
+u_float.temp_byte[3] = matrix_byte[23];
+
+atmoSud.so2 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[24];
+u_float.temp_byte[1] = matrix_byte[25];
+u_float.temp_byte[2] = matrix_byte[26];
+u_float.temp_byte[3] = matrix_byte[27];
+
+nebuleair.pm1 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[28];
+u_float.temp_byte[1] = matrix_byte[29];
+u_float.temp_byte[2] = matrix_byte[30];
+u_float.temp_byte[3] = matrix_byte[31];
+
+nebuleair.pm2_5 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[32];
+u_float.temp_byte[1] = matrix_byte[33];
+u_float.temp_byte[2] = matrix_byte[34];
+u_float.temp_byte[3] = matrix_byte[35];
+
+nebuleair.pm10 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[36];
+u_float.temp_byte[1] = matrix_byte[37];
+u_float.temp_byte[2] = matrix_byte[38];
+u_float.temp_byte[3] = matrix_byte[39];
+
+nebuleair.no2 = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[40];
+u_float.temp_byte[1] = matrix_byte[41];
+u_float.temp_byte[2] = matrix_byte[42];
+u_float.temp_byte[3] = matrix_byte[43];
+
+nebuleair.cov = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[44];
+u_float.temp_byte[1] = matrix_byte[45];
+u_float.temp_byte[2] = matrix_byte[46];
+u_float.temp_byte[3] = matrix_byte[47];
+
+nebuleair.t = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[48];
+u_float.temp_byte[1] = matrix_byte[49];
+u_float.temp_byte[2] = matrix_byte[50];
+u_float.temp_byte[3] = matrix_byte[51];
+
+nebuleair.h = u_float.temp_float;
+
+u_float.temp_byte[0] = matrix_byte[52];
+u_float.temp_byte[1] = matrix_byte[53];
+u_float.temp_byte[2] = matrix_byte[54];
+u_float.temp_byte[3] = matrix_byte[55];
+
+nebuleair.p= u_float.temp_float;
+
+matrix_time.year = word(matrix_byte[56], matrix_byte[57]);
+matrix_time.month = word(matrix_byte[58], matrix_byte[59]);
+matrix_time.day = word(matrix_byte[60], matrix_byte[61]);
+matrix_time.hour = word(matrix_byte[62], matrix_byte[63]);
+matrix_time.minute = word(matrix_byte[64], matrix_byte[65]);
+matrix_time.second = word(matrix_byte[66], matrix_byte[67]);
+}
+
 
 /*****************************************************************
  * The Setup                                                     *
@@ -4180,6 +4346,7 @@ debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 
 	Debug.printf("End of void setup()\n");
 	time_end_setup = millis();
+	Wire.onReceive(onReceive2);
 }
 
 void loop()
@@ -4257,85 +4424,114 @@ void loop()
 		void *SpActual = NULL;
 		Debug.printf("Free Stack at send_now is: %d \r\n", (uint32_t)&SpActual - (uint32_t)StackPtrEnd);
 
-	union int16_2_byte
+	// union int16_2_byte
+	// {
+	// 	int16_t temp_int;
+	// 	byte temp_byte[2];
+	// } u1;
+
+
+	union float_2_byte
 	{
-		int16_t temp_int;
-		byte temp_byte[2];
-	} u1;
+		float temp_float;
+		byte temp_byte[4];
+	} ufloat;
 
-	if (last_value_NPM_P0 != -1.0)
-		u1.temp_int = (int16_t)round(last_value_NPM_P0 * 10);
-	else
-		u1.temp_int = (int16_t)round(last_value_NPM_P0);
 
-	data_byte[0] = u1.temp_byte[1];
-	data_byte[1] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_NPM_P0;
 
-	if (last_value_NPM_P1 != -1.0)
-		u1.temp_int = (int16_t)round(last_value_NPM_P1 * 10);
-	else
-		u1.temp_int = (int16_t)round(last_value_NPM_P1);
+	data_byte[0] = ufloat.temp_byte[0];
+	data_byte[1] = ufloat.temp_byte[1];
+	data_byte[2] = ufloat.temp_byte[2];
+	data_byte[3] = ufloat.temp_byte[3];
 
-	data_byte[2] = u1.temp_byte[1];
-	data_byte[3] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_NPM_P1;
 
-	if (last_value_NPM_P2 != -1.0)
-		u1.temp_int = (int16_t)round(last_value_NPM_P2 * 10);
-	else
-		u1.temp_int = (int16_t)round(last_value_NPM_P2);
+	data_byte[4] = ufloat.temp_byte[0];
+	data_byte[5] = ufloat.temp_byte[1];
+	data_byte[6] = ufloat.temp_byte[2];
+	data_byte[7] = ufloat.temp_byte[3];
 
-	data_byte[4] = u1.temp_byte[1];
-	data_byte[5] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_NPM_P2;
 
-	u1.temp_int = (int16_t)round(last_value_NPM_N1);
+	data_byte[8] = ufloat.temp_byte[0];
+	data_byte[9] = ufloat.temp_byte[1];
+	data_byte[10] = ufloat.temp_byte[2];
+	data_byte[11] = ufloat.temp_byte[3];
 
-	data_byte[6] = u1.temp_byte[1];
-	data_byte[7] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_NPM_N1;
 
-	u1.temp_int = (int16_t)round(last_value_NPM_N10);
+	data_byte[12] = ufloat.temp_byte[0];
+	data_byte[13] = ufloat.temp_byte[1];
+	data_byte[14] = ufloat.temp_byte[2];
+	data_byte[15] = ufloat.temp_byte[3];
 
-	data_byte[8] = u1.temp_byte[1];
-	data_byte[9] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_NPM_N10;
 
-	u1.temp_int = (int16_t)round(last_value_NPM_N25);
+	data_byte[16] = ufloat.temp_byte[0];
+	data_byte[17] = ufloat.temp_byte[1];
+	data_byte[18] = ufloat.temp_byte[2];
+	data_byte[19] = ufloat.temp_byte[3];
 
-	data_byte[10] = u1.temp_byte[1];
-	data_byte[11] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_NPM_N25;
 
-	u1.temp_int = (int16_t)round(last_value_MHZ16);
+	data_byte[20] = ufloat.temp_byte[0];
+	data_byte[21] = ufloat.temp_byte[1];
+	data_byte[22] = ufloat.temp_byte[2];
+	data_byte[23] = ufloat.temp_byte[3];
 
-	data_byte[12] = u1.temp_byte[1];
-	data_byte[13] = u1.temp_byte[0];
 
-	u1.temp_int = (int16_t)round(last_value_MHZ19);
+	ufloat.temp_float = last_value_MHZ16;
 
-	data_byte[14] = u1.temp_byte[1];
-	data_byte[15] = u1.temp_byte[0];
+	data_byte[24] = ufloat.temp_byte[0];
+	data_byte[25] = ufloat.temp_byte[1];
+	data_byte[26] = ufloat.temp_byte[2];
+	data_byte[27] = ufloat.temp_byte[3];
 
-	u1.temp_int = (int16_t)round(last_value_CCS811);
 
-	data_byte[16] = u1.temp_byte[1];
-	data_byte[17] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_MHZ19;
 
-	if (last_value_BMX280_T != -128.0)
-		u1.temp_int = (int16_t)round(last_value_BMX280_T * 10);
-	else
-		u1.temp_int = (int16_t)round(last_value_BMX280_T);
+	data_byte[28] = ufloat.temp_byte[0];
+	data_byte[29] = ufloat.temp_byte[1];
+	data_byte[30] = ufloat.temp_byte[2];
+	data_byte[31] = ufloat.temp_byte[3];
 
-	data_byte[18] = u1.temp_byte[1];
-	data_byte[19] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_CCS811;
 
-	data_byte[20] = (int8_t)round(last_value_BME280_H);
+	data_byte[32] = ufloat.temp_byte[0];
+	data_byte[33] = ufloat.temp_byte[1];
+	data_byte[34] = ufloat.temp_byte[2];
+	data_byte[35] = ufloat.temp_byte[3];
 
-	u1.temp_int = (int16_t)round(last_value_BMX280_P);
 
-	data_byte[21] = u1.temp_byte[1];
-	data_byte[22] = u1.temp_byte[0];
+	ufloat.temp_float = last_value_BMX280_T;
 
-	u1.temp_int = (int16_t)round(last_value_no2);
+	data_byte[36] = ufloat.temp_byte[0];
+	data_byte[37] = ufloat.temp_byte[1];
+	data_byte[38] = ufloat.temp_byte[2];
+	data_byte[39] = ufloat.temp_byte[3];
 
-	data_byte[23] = u1.temp_byte[1];
-	data_byte[24] = u1.temp_byte[0];
+
+	ufloat.temp_float = last_value_BME280_H;
+
+	data_byte[40] = ufloat.temp_byte[0];
+	data_byte[41] = ufloat.temp_byte[1];
+	data_byte[42] = ufloat.temp_byte[2];
+	data_byte[43] = ufloat.temp_byte[3];
+
+	ufloat.temp_float = last_value_BMX280_P;
+
+	data_byte[44] = ufloat.temp_byte[0];
+	data_byte[45] = ufloat.temp_byte[1];
+	data_byte[46] = ufloat.temp_byte[2];
+	data_byte[47] = ufloat.temp_byte[3];
+
+	ufloat.temp_float = last_value_no2;
+
+	data_byte[48] = ufloat.temp_byte[0];
+	data_byte[49] = ufloat.temp_byte[1];
+	data_byte[50] = ufloat.temp_byte[2];
+	data_byte[51] = ufloat.temp_byte[3];
 
 	Debug.printf("HEX values data:\n");
 	for (int i = 0; i < LEN_DATA_BYTE - 1; i++)

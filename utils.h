@@ -52,7 +52,6 @@ namespace cfg {
 }
 
 
-#define serialSDS (Serial1)
 #define serialNPM (Serial1) 
 #define serialMHZ (Serial2)
 

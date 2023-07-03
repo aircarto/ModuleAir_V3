@@ -94,6 +94,21 @@ Verify that those pins are defined:
 #define SPI_BUS_SS 4
 ```
 
+**sd_defines.h**
+
+Verify that those pins are defined:
+
+```
+#define SD_SPI_BUS_CLK D18
+#define SD_SPI_BUS_MOSI D23
+#define SD_SPI_BUS_MISO D19 
+#define SD_SPI_BUS_SS D5
+```
+
+**SD.h and SD.cpp**
+
+This file are modified to force the choice of the pins on begin.
+
 ## Font changes
 
 The default glcdfont.c of the Adafruit GFX library was modified to add new characters.

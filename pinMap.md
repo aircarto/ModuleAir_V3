@@ -6,7 +6,7 @@ Here is the pin mapping for the Module Air:
 |GPI01| TX | USB Serial |
 |GPIO2| unused | Inboard LED |
 |GPIO3| RX | USB Serial |
-|GPIO4| 💡Matrix C | notes |
+|GPIO4| 🕰️ SCL RTC | notes |
 |GPIO5| 📶 lora NSS | notes |
 |GPIO6| &#x1F6D1;	 | integrated SPI flash |
 |GPIO7| &#x1F6D1; | integrated SPI flash |
@@ -14,25 +14,25 @@ Here is the pin mapping for the Module Air:
 |GPIO9| &#x1F6D1; | integrated SPI flash |
 |GPIO10| &#x1F6D1; | integrated SPI flash |
 |GPIO11| &#x1F6D1; | integrated SPI flash |
-|GPIO12| 💡Matrix D | notes |
-|GPIO13| 💡Matrix R0 | notes |
-|GPIO14| 💡Matrix CLK | notes |
-|GPIO15| 💡Matrix E | notes |
-|GPIO16| 💡Matrix OE | notes |
-|GPIO17| 💡Matrix A | notes |
+|GPIO12| 📶 ethernet MISO | notes |
+|GPIO13| 📶 ethernet MOSI | notes |
+|GPIO14| 📶 ethernet SCK | notes |
+|GPIO15| 📶 ethernet CS | notes |
+|GPIO16| 🕰️ SDA RTC | notes |
+|GPIO17|  | notes |
 |GPIO18| 📶 lora SCK | notes |
 |GPIO19| 📶 lora MISO | notes |
-|GPIO21| SDA | notes |
-|GPIO22| SCL | notes |
+|GPIO21| SDA COM | notes |
+|GPIO22| SCL COM | notes |
 |GPIO23| 📶 lora MOSI | notes |
-|GPIO25| 💡Matrix STB/LAT | notes |
+|GPIO25|  | notes |
 |GPIO26| 📶 lora DIO0 | notes |
-|GPIO27| ♨ CO2 RX | notes |
-|GPIO32| NextPM RX | notes |
-|GPIO33| 💡Matrix B | notes |
+|GPIO27|  | notes |
+|GPIO32|  | notes |
+|GPIO33|  | notes |
 |GPIO34| 📶 lora DIO2 | notes |
 |GPIO35| 📶 lora DIO1 | notes |
-|GPIO36| ♨ CO2 TX  | notes |
-|GPIO39| NextPM TX | notes |
+|GPIO36|   | notes |
+|GPIO39|  | notes |
 
 

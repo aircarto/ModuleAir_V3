@@ -1,8 +1,8 @@
-# ModuleAir V2.1
+# ModuleAir V3 Communication
 
 ![image](https://aircarto.fr/images/ModuleAir_InstaWhite.jpg)
 
-The Module Air is an open source air quality sensor invented by [Atmosud](https://www.atmosud.org/) and developed by the company [AirCarto](https://aircarto.fr/). The device is equiped with a large LED Matrix Panel to display air quality data measured by inboard sensors.
+The ModuleAir is an open source air quality sensor invented by [Atmosud](https://www.atmosud.org/) and developed by the company [AirCarto](https://aircarto.fr/). The device is equiped with a large LED Matrix Panel to display air quality data measured by inboard sensors.
 
 ## Supported sensors
 * Nova PM SDS011 (PM2.5 and PM10)
@@ -10,12 +10,12 @@ The Module Air is an open source air quality sensor invented by [Atmosud](https:
 * CCS811 (COV)
 * MH-Z16 (CO2)
 * MH-Z19 (CO2)
+* Cairsens Envea (NO2)
 * BME280 (Temperature and Humidity)
 
 ## Displays
 * 64x32 RGB Matrix P3 192x96mm 
 * 64x32 RGB Matrix P2.5 160x80mm 
-* OLED SSD1306 (not tested)
 
 Attention: some Matrix Panels are not the same and colors can be mixed up, need to change the function `	display.setColorOrder(RRBBGG);`
 Small OLED screen can be connected via I2C pins (SDA and SCL).
@@ -25,6 +25,7 @@ Small OLED screen can be connected via I2C pins (SDA and SCL).
 * Transmits data with WiFi or LoRaWAN to different databases
 * Gets AQ forecasts from the AtmoSud API, the official Institute for Air Quality in SE France
 * Displays the measurements and the forecasts (French AQI, NO2, O3, PM10, PM2.5) on the matrix
+* Gets the mesurement of an outdoor NebuleAir sensor
 * Fully configurable through a web interface
 
 ## Libraries
@@ -37,7 +38,9 @@ Small OLED screen can be connected via I2C pins (SDA and SCL).
 * sensirion/Sensirion Core@^0.6.0
 * mcci-catena/MCCI LoRaWAN LMIC library@^4.1.1
 * ThingPulse/ESP8266 and ESP32 OLED driver for SSD1306 displays @ ^4.2.1
-*  maarten-pennings/CCS811 @ ^12.0.0
+* maarten-pennings/CCS811 @ ^12.0.0
+* arduino-libraries/Ethernet@^2.0.2
+* plerup/EspSoftwareSerial@^8.0.1
 
 And the ESP32 platform librairies:
 * Wire
@@ -52,16 +55,16 @@ And the ESP32 platform librairies:
 * ESPmDNS
 
 ## Boards
-The code is developped on a ESP32 DevC with 38 pins (equiped with a ESP-WROOM-32 module). More information about this board on the official [Espressif website](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-devkitc.html).
+The code is developped on 2 ESP32 DevC with 38 pins (equiped with a ESP-WROOM-32 module). More information about this board on the official [Espressif website](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-devkitc.html).
 
 ## Flashing
 
 Please use Platformio to flash the board.
 The .ini file should be able to get all the needed boards, platforms and libraries from the internet
 
-## Library changes
+## Library changes for ESP32 COM
 
-To force the use of both the SPIs on the ESP32, the SPI library and the PXMatrix library has to be corrected a bit.
+To force the use of both the SPIs on the ESP32, the SPI library, the Ethernet library and the RTC library have to be corrected a bit.
 
 **SPI.cpp**
 
@@ -80,7 +83,7 @@ SPIClass SPI(FSPI);
 Add this line at the bottom:
 `extern SPIClass SPI_H;`
 
-**PxMatrix.h**
+**ethernet.h**
 
 Replace all `SPI` with `SPI_H` except for `#include <SPI.h>`.
 
@@ -92,6 +95,14 @@ Verify that those pins are defined:
 #define SPI_BUS_MOSI 13
 #define SPI_BUS_MISO 12
 #define SPI_BUS_SS 4
+```
+
+**RTClib.h**
+
+Force Wire 1 in the class for your RTC module:
+
+```
+bool begin(TwoWire *wireInstance = &Wire1);
 ```
 
 ## Font changes

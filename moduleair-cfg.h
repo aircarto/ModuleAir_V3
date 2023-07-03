@@ -56,9 +56,6 @@ enum ConfigShapeId {
 	Config_has_matrix,
 	Config_display_measure,
 	Config_display_forecast,
-	Config_display_wifi_info,
-	Config_display_lora_info,
-	Config_display_device_info,
 	Config_debug,
 	Config_sending_intervall_ms,
 	Config_time_for_wifi_config,
@@ -113,9 +110,6 @@ static constexpr char CFG_KEY_SEND2CSV[] PROGMEM = "send2csv";
 static constexpr char CFG_KEY_HAS_MATRIX[] PROGMEM = "has_matrix";
 static constexpr char CFG_KEY_DISPLAY_MEASURE[] PROGMEM = "display_measure";
 static constexpr char CFG_KEY_DISPLAY_FORECAST[] PROGMEM = "display_forecast";
-static constexpr char CFG_KEY_DISPLAY_WIFI_INFO[] PROGMEM = "display_wifi_info";
-static constexpr char CFG_KEY_DISPLAY_LORA_INFO[] PROGMEM = "display_lora_info";
-static constexpr char CFG_KEY_DISPLAY_DEVICE_INFO[] PROGMEM = "display_device_info";
 static constexpr char CFG_KEY_DEBUG[] PROGMEM = "debug";
 static constexpr char CFG_KEY_SENDING_INTERVALL_MS[] PROGMEM = "sending_intervall_ms";
 static constexpr char CFG_KEY_TIME_FOR_WIFI_CONFIG[] PROGMEM = "time_for_wifi_config";
@@ -170,9 +164,6 @@ static constexpr ConfigShapeEntry configShape[] PROGMEM = {
 	{ Config_Type_Bool, 0, CFG_KEY_HAS_MATRIX, &cfg::has_matrix },
 	{ Config_Type_Bool, 0, CFG_KEY_DISPLAY_MEASURE, &cfg::display_measure },
 	{ Config_Type_Bool, 0, CFG_KEY_DISPLAY_FORECAST, &cfg::display_forecast },
-	{ Config_Type_Bool, 0, CFG_KEY_DISPLAY_WIFI_INFO, &cfg::display_wifi_info },
-	{ Config_Type_Bool, 0, CFG_KEY_DISPLAY_LORA_INFO, &cfg::display_lora_info },
-	{ Config_Type_Bool, 0, CFG_KEY_DISPLAY_DEVICE_INFO, &cfg::display_device_info },
 	{ Config_Type_UInt, 0, CFG_KEY_DEBUG, &cfg::debug },
 	{ Config_Type_Time, 0, CFG_KEY_SENDING_INTERVALL_MS, &cfg::sending_intervall_ms },
 	{ Config_Type_Time, 0, CFG_KEY_TIME_FOR_WIFI_CONFIG, &cfg::time_for_wifi_config },

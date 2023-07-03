@@ -31,9 +31,6 @@ Bool		send2csv
 Bool		has_matrix
 Bool		display_measure
 Bool		display_forecast
-Bool		display_wifi_info
-Bool		display_lora_info
-Bool		display_device_info
 UInt		debug
 Time		sending_intervall_ms
 Time		time_for_wifi_config

@@ -159,9 +159,6 @@ namespace cfg
 	bool has_matrix = HAS_MATRIX;
 	bool display_measure = DISPLAY_MEASURE;
 	bool display_forecast = DISPLAY_FORECAST;
-	bool display_wifi_info = DISPLAY_WIFI_INFO;
-	bool display_lora_info = DISPLAY_LORA_INFO;
-	bool display_device_info = DISPLAY_DEVICE_INFO;
 
 	// API settings
 	bool ssl_madavi = SSL_MADAVI;
@@ -323,7 +320,7 @@ uint8_t forecast_selector;
 
 
 byte config_byte[LEN_CONFIG_BYTE] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-byte data_byte[LEN_DATA_BYTE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+byte data_byte[LEN_DATA_BYTE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 byte request_byte[LEN_REQUEST];
 
 union int16_2_byte
@@ -1035,7 +1032,7 @@ static void webserver_config_send_body_get(String &page_content)
 	server.sendContent(page_content);
 
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(3));
-	add_form_checkbox(Config_has_lora, FPSTR(INTL_ETHERNET_ACTIVATION));
+	add_form_checkbox(Config_has_ethernet, FPSTR(INTL_ETHERNET_ACTIVATION));
 	server.sendContent(page_content);
 
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(4));
@@ -1057,9 +1054,8 @@ static void webserver_config_send_body_get(String &page_content)
 	add_form_checkbox(Config_has_matrix, FPSTR(INTL_MATRIX));
 	add_form_checkbox(Config_display_measure, FPSTR(INTL_DISPLAY_MEASURES));
 	add_form_checkbox(Config_display_forecast, FPSTR(INTL_DISPLAY_FORECAST));
-	add_form_checkbox(Config_display_wifi_info, FPSTR(INTL_DISPLAY_WIFI_INFO));
-	add_form_checkbox(Config_display_lora_info, FPSTR(INTL_DISPLAY_LORA_INFO));
-	add_form_checkbox(Config_display_device_info, FPSTR(INTL_DISPLAY_DEVICE_INFO));
+
+	server.sendContent(page_content);
 
 	page_content = FPSTR(WEB_BR_LF_B);
 	page_content += F(INTL_NEBULEAIR);
@@ -1411,6 +1407,15 @@ static void sensor_restart()
 #pragma GCC diagnostic pop
 
 	debug_outln_info(F("Restart."));
+
+Wire.beginTransmission(I2C_SLAVE_ADDR);
+
+  data_byte[68] = 0x01;
+  Wire.write(data_byte, sizeof(data_byte));
+  Debug.println("Restart ESP32 Sens!");
+
+error = Wire.endTransmission(true);
+
 	delay(500);
 	ESP.restart();
 	// should not be reached

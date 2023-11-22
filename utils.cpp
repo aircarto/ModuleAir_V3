@@ -152,10 +152,8 @@ void add_Value2Json(String& res, const __FlashStringHelper* type, const String& 
 }
 
 void add_Value2Json(String& res, const __FlashStringHelper* type, const __FlashStringHelper* debug_type, const float& value) {
-	if(value != -0.1 && value != -1.0 && value != -12.8){
 	debug_outln_info(FPSTR(debug_type), value);
 	add_Value2Json(res, type, String(value));
-	}
 }
 
 float readCorrectionOffset(const char* correction) {

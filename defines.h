@@ -6,6 +6,8 @@
 #define LEN_CONFIG_BYTE 29
 #define LEN_DATA_BYTE 52
 #define LEN_MATRIX_BYTE 69
+#define LEN_WIFI_BYTE 2
+#define LEN_LORA_BYTE 2
 
 // define debug levels
 #define DEBUG_ERROR 1

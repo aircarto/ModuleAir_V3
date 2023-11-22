@@ -48,15 +48,15 @@ BSD license, check license.txt for more information
 #endif
 
 #if defined(ESP8266) || defined(ESP32)
-  #define SPI_TRANSFER(x,y) SPI.writeBytes(x,y)
-  #define SPI_BYTE(x) SPI.write(x)
-  #define SPI_2BYTE(x) SPI.write16(x)
+  #define SPI_TRANSFER(x,y) SPI_H.writeBytes(x,y)
+  #define SPI_BYTE(x) SPI_H.write(x)
+  #define SPI_2BYTE(x) SPI_H.write16(x)
 #endif
 
 #ifdef __AVR__
-  #define SPI_TRANSFER(x,y) SPI.transfer(x,y)
-  #define SPI_BYTE(x) SPI.transfer(x)
-  #define SPI_2BYTE(x) SPI.transfer16(x)
+  #define SPI_TRANSFER(x,y) SPI_H.transfer(x,y)
+  #define SPI_BYTE(x) SPI_H.transfer(x)
+  #define SPI_2BYTE(x) SPI_H.transfer16(x)
 #endif
 
 #include "Adafruit_GFX.h"
@@ -113,18 +113,18 @@ BSD license, check license.txt for more information
 #endif
 
 // // HW SPI PINS
-// #define SPI_BUS_CLK 14
-// #define SPI_BUS_MOSI 13
-// #define SPI_BUS_MISO 12 
-// #define SPI_BUS_SS 4    
+#define SPI_BUS_CLK 14
+#define SPI_BUS_MOSI 13
+#define SPI_BUS_MISO 12 
+#define SPI_BUS_SS 4    
 
 //12 et 0 soivent pouvoir etre attribué sur pin deja occupé
 
 // SW SPI PINS
-#define SPI_BUS_CLK 18
-#define SPI_BUS_MOSI 23
-#define SPI_BUS_MISO 19
-#define SPI_BUS_SS 5
+// #define SPI_BUS_CLK 18
+// #define SPI_BUS_MOSI 23
+// #define SPI_BUS_MISO 19
+// #define SPI_BUS_SS 5
 
 // Either the panel handles the multiplexing and we feed BINARY to A-E pins
 // or we handle the multiplexing and activate one of A-D pins (STRAIGHT)
@@ -398,7 +398,7 @@ inline void PxMATRIX::init(uint16_t width, uint16_t height,uint8_t LATCH, uint8_
 #ifdef ESP32
 inline void PxMATRIX::fm612xWriteRegister(uint16_t reg_value, uint8_t reg_position)
 {
-    spi_t * spi = SPI.bus();
+    spi_t * spi = SPI_H.bus();
     // reg_value = 0x1234;  debug
 
     for(int i=0; i<47; i++)
@@ -860,17 +860,17 @@ void PxMATRIX::spi_init(){
 
   #ifdef ESP32
   //FORCE VSPI as Default for the LMIC
-   SPI.begin(_SPI_CLK, _SPI_MISO, _SPI_MOSI, _SPI_SS);
+   SPI_H.begin(_SPI_CLK, _SPI_MISO, _SPI_MOSI, _SPI_SS);
   #else
    SPI.begin();
   #endif
 
   #if defined(ESP32) || defined(ESP8266)
-    SPI.setFrequency(PxMATRIX_SPI_FREQUENCY);
+    SPI_H.setFrequency(PxMATRIX_SPI_FREQUENCY);
   #endif
 
-    SPI.setDataMode(SPI_MODE0);
-    SPI.setBitOrder(MSBFIRST);
+    SPI_H.setDataMode(SPI_MODE0);
+    SPI_H.setBitOrder(MSBFIRST);
 
 }
 
@@ -1120,7 +1120,7 @@ uint8_t (*bufferp)[PxMATRIX_COLOR_DEPTH][buffer_size] = &PxMATRIX_buffer;
       GPIO_REG_CLEAR( 1 << _OE_PIN);
       uint8_t* bf = &(*bufferp)[_display_color][i*_send_buffer_size];
 
-      spi_t * spi = SPI.bus();
+      spi_t * spi = SPI_H.bus();
       spiSimpleTransaction(spi);
 
       spiWriteNL(spi, bf, _send_buffer_size-1);

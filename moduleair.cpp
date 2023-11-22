@@ -29,9 +29,9 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 
 // extern SPIClass SPI_H; en bas
 
-//PxMatrix utilise le SPI normal
+//PxMatrix utilise le SPI_H 
 
-//SD utilise le SPI_H
+//SD utilise le SPI
 
 //on remplace la glcdfont.c original dans AdaFruitGFX => mod dans le dossier Fonts
 
@@ -2488,9 +2488,14 @@ static void fetchSensorNPM()
 			last_value_NPM_P1 = float(npm_pm10_sum) / (npm_val_count * 10.0f);
 			last_value_NPM_P2 = float(npm_pm25_sum) / (npm_val_count * 10.0f);
 
-			last_value_NPM_N1 = float(npm_pm1_sum_pcs) / (npm_val_count * 1000.0f);
-			last_value_NPM_N10 = float(npm_pm10_sum_pcs) / (npm_val_count * 1000.0f);
-			last_value_NPM_N25 = float(npm_pm25_sum_pcs) / (npm_val_count * 1000.0f);
+			// last_value_NPM_N1 = float(npm_pm1_sum_pcs) / (npm_val_count * 1000.0f);
+			// last_value_NPM_N10 = float(npm_pm10_sum_pcs) / (npm_val_count * 1000.0f);
+			// last_value_NPM_N25 = float(npm_pm25_sum_pcs) / (npm_val_count * 1000.0f);
+
+			last_value_NPM_N1 = float(npm_pm1_sum_pcs) / (npm_val_count);
+			last_value_NPM_N10 = float(npm_pm10_sum_pcs) / (npm_val_count);
+			last_value_NPM_N25 = float(npm_pm25_sum_pcs) / (npm_val_count);
+
 
 			debug_outln_info(FPSTR(DBG_TXT_SEP));
 		}
@@ -3460,6 +3465,7 @@ static void init_matrix()
 	{
 		has_logo = false;
 	}
+	//IL FAUDRA ADAPTER LES DELAY SELON LE NOMBRE DE LOGOS!!!!!!
 }
 
 /*****************************************************************
@@ -3946,29 +3952,451 @@ static void testFileIO(fs::FS &fs, const char *path)
  *****************************************************************/
 
 bool get_config = false;
+bool get_matrix = false;
+bool get_wifi = false;
+bool get_wifi_test = false;
+bool get_ethernet = false;
+bool get_ethernet_test = false;
+bool get_lora = false;
+bool get_lora_test = false;
+
+byte further = 0x00;
+
 
 uint32_t i = 0;
 
 byte config_byte[LEN_CONFIG_BYTE];
 byte data_byte[LEN_DATA_BYTE];
 byte matrix_byte[LEN_MATRIX_BYTE] = {0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0xBF, 0x80, 0x00, 0x00, 0x07, 0xD0, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+byte wifi_byte[LEN_WIFI_BYTE];
+byte lora_byte[LEN_LORA_BYTE];
 
-
-void onRequest(){
+void onRequestData(){
   Wire.write(data_byte, sizeof(data_byte));
-  Debug.println("Config sent!");
-  Debug.println("onRequest");
+  Debug.println("Data request!");
 }
 
-void onReceive1(int len){
+void onRequestFurther(){
+  Wire.write(further);
+  Debug.println("1 step further!");
+  Debug.print("Send step: ");
+  Debug.println(further);
+}
+
+void onReceiveMatrix(int len){
+  while(Wire.available()){
+	cfg::has_matrix = Wire.read();
+  }
+  	get_matrix = true;
+	further = 0x01;
+
+	if(cfg::has_matrix){
+	Debug.println("Init Matrix");
+	init_matrix();
+	}else{
+		Debug.println("No Matrix");
+	}
+}
+
+
+void onReceiveWifi(int len){
+	Debug.println("Receive WiFi");
+  while(Wire.available()){
+	cfg::has_wifi = Wire.read();
+  }
+
+	if(cfg::has_wifi && cfg::has_matrix){
+		display.fillScreen(myBLACK);
+		display.setTextColor(myWHITE);
+		display.setFont(NULL);
+		display.setCursor(1, 0);
+		display.setTextSize(1);
+		display.print("Activation");
+		display.setCursor(1, 11);
+		display.print("WiFi");
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+		display.setCursor(1, 0);
+		display.print("Connexion");
+		display.setCursor(1, 11);
+		display.print("WiFi");
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+
+	}
+	get_wifi = true;
+	further = 0x02;
+}
+
+void onReceiveWifiTest(int len){  //REPRENDRE NUMÈRO
+
+  while(Wire.available()){
+	Wire.readBytes(wifi_byte,LEN_WIFI_BYTE);
+  }
+	if (cfg::has_matrix && wifi_byte[0] == 0x00)
+	{
+		display.fillScreen(myBLACK);
+		display.setTextColor(myWHITE);
+		display.setFont(NULL);
+		display.setTextSize(1);
+		display.setCursor(1, 0);
+		display.print("Configurer");
+		display.setCursor(1, 11);
+		display.print("le WiFi");
+		display.setCursor(1, 22);
+		display.print("3 min.");
+
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+	}
+
+	if (cfg::has_matrix && wifi_byte[0] == 0x01)
+	{
+		display.fillScreen(myBLACK);
+			display.setTextColor(myWHITE);
+			display.setFont(NULL);
+			display.setTextSize(1);
+			display.setCursor(1, 0);
+			display.print("Connexion");
+			display.setCursor(1, 11);
+			display.write(130);
+			display.print("tablie");
+			display.setCursor(1, 22);
+			display.print(String(wifi_byte[1]));
+			display.print("%");
+
+			for (int i = 0; i < 5; i++)
+			{
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop1);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop2);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop3);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop4);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop5);
+				delay(200);
+			}
+			display.fillScreen(myBLACK);
+	}
+	get_wifi_test = true;
+	further = 0x03;
+}
+
+
+void onReceiveEthernet(int len){
+  while(Wire.available()){
+cfg::has_ethernet = Wire.read();
+  }
+if(cfg::has_ethernet && cfg::has_matrix){
+
+		display.fillScreen(myBLACK);
+		display.setTextColor(myWHITE);
+		display.setFont(NULL);
+		display.setCursor(1, 0);
+		display.setTextSize(1);
+		display.print("Activation");
+		display.setCursor(1, 11);
+		display.print("Ethernet");
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+		display.setCursor(1, 0);
+		display.print("Connexion");
+		display.setCursor(1, 11);
+		display.print("Ethernet");
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+	}
+
+	get_ethernet = true;
+	further = 0x04;
+
+}
+
+
+void onReceiveEthernetTest(int len){  //REPRENDRE NUMÈRO
+
+ byte ethernet_test;
+
+  while(Wire.available()){
+	ethernet_test = Wire.read();
+  }
+	if (cfg::has_matrix && ethernet_test == 0x00)
+	{
+		display.fillScreen(myBLACK);
+		display.setTextColor(myWHITE);
+		display.setFont(NULL);
+		display.setTextSize(1);
+		display.setCursor(1, 0);
+		display.print("Aucune");
+		display.setCursor(1, 11);
+		display.print("connexion");
+		display.setCursor(1, 22);
+		display.print("Ehernet");
+		delay(2000);
+	}
+
+	if (cfg::has_matrix && ethernet_test == 0x01)
+	{
+		display.fillScreen(myBLACK);
+		display.setTextColor(myWHITE);
+		display.setFont(NULL);
+		display.setTextSize(1);
+		display.setCursor(1, 0);
+		display.print("Connexion");
+		display.setCursor(1, 11);
+		display.print("Ethernet");
+		display.setCursor(1, 22);
+		display.print("OK");
+		delay(2000);
+	}
+	display.fillScreen(myBLACK);
+
+	get_ethernet_test = true;
+	further = 0x05;
+}
+
+void onReceiveLora(int len){
+  while(Wire.available()){
+	cfg::has_lora = Wire.read();
+  }
+	if(cfg::has_lora && cfg::has_matrix){
+
+		display.fillScreen(myBLACK);
+		display.setTextColor(myWHITE);
+		display.setFont(NULL);
+		display.setCursor(1, 0);
+		display.setTextSize(1);
+		display.print("Activation");
+		display.setCursor(1, 11);
+		display.print("LoRaWAN");
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+		display.setCursor(1, 0);
+		display.print("Connexion");
+		display.setCursor(1, 11);
+		display.print("LoRaWAN");
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+	}
+	get_lora = true;
+	further = 0x06;
+}
+
+
+void onReceiveLoraTest(int len){  //REPRENDRE NUMÈRO
+
+  while(Wire.available()){
+	Wire.readBytes(lora_byte,LEN_LORA_BYTE);
+  }
+	if (cfg::has_matrix && lora_byte[0] == 0x00)
+	{
+		display.fillScreen(myBLACK);
+		display.setTextColor(myWHITE);
+		display.setFont(NULL);
+		display.setTextSize(1);
+		display.setCursor(1, 0);
+		display.print("Aucune");
+		display.setCursor(1, 11);
+		display.print("Connexion");
+		display.setCursor(1, 22);
+		display.print("LoRaWAN");
+
+		for (int i = 0; i < 5; i++)
+		{
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop1);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop2);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop3);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop4);
+			delay(200);
+			display.fillRect(47, 15, 16, 16, myBLACK);
+			drawImage(47, 15, 16, 16, wifiloop5);
+			delay(200);
+		}
+		display.fillScreen(myBLACK);
+	}
+
+	if (cfg::has_matrix && lora_byte[0] == 0x01)
+	{
+		display.fillScreen(myBLACK);
+			display.setTextColor(myWHITE);
+			display.setFont(NULL);
+			display.setTextSize(1);
+			display.setCursor(1, 0);
+			display.print("Connexion");
+			display.setCursor(1, 11);
+			display.write(130);
+			display.print("LoRaWAN");
+			display.setCursor(1, 22);
+			display.print(String(lora_byte[1]));
+			display.print("%");
+
+			for (int i = 0; i < 5; i++)
+			{
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop1);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop2);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop3);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop4);
+				delay(200);
+				display.fillRect(47, 15, 16, 16, myBLACK);
+				drawImage(47, 15, 16, 16, wifiloop5);
+				delay(200);
+			}
+			display.fillScreen(myBLACK);
+	}
+	get_lora_test = true;
+	further = 0x07;
+}
+
+void onReceiveConfig(int len){
   while(Wire.available()){
 	Wire.readBytes(config_byte,LEN_CONFIG_BYTE);
   }
 	Debug.println(len);
 	get_config = true;
+	further = 0x08;
 }
 
-void onReceive2(int len){
+void onReceive4(int len){
   while(Wire.available()){
 	Wire.readBytes(matrix_byte,LEN_MATRIX_BYTE);
   }
@@ -3982,6 +4410,7 @@ union float_2_byte
 
 if(matrix_byte[68] == 0x01)
 {
+	Debug.println("Restart triggered!");
 	delay(500);
 	ESP.restart();
 }else{
@@ -4090,6 +4519,27 @@ matrix_time.day = word(matrix_byte[60], matrix_byte[61]);
 matrix_time.hour = word(matrix_byte[62], matrix_byte[63]);
 matrix_time.minute = word(matrix_byte[64], matrix_byte[65]);
 matrix_time.second = word(matrix_byte[66], matrix_byte[67]);
+
+debug_outln_info(F("AtmoSud ICAIR: "), atmoSud.multi);
+debug_outln_info(F("AtmoSud NO2: "), atmoSud.no2);
+debug_outln_info(F("AtmoSud O3: "), atmoSud.o3);
+debug_outln_info(F("AtmoSud PM10: "), atmoSud.pm10);
+debug_outln_info(F("AtmoSud PM2.5: "), atmoSud.pm2_5);
+debug_outln_info(F("AtmoSud SO2: "), atmoSud.no2);
+debug_outln_info(F("NebuleAir PM1: "), nebuleair.pm1);
+debug_outln_info(F("NebuleAir PM2.5: "), nebuleair.pm2_5);
+debug_outln_info(F("NebuleAir PM10: "), nebuleair.pm10);
+debug_outln_info(F("NebuleAir NO2: "), nebuleair.no2);
+debug_outln_info(F("NebuleAir VOC: "), nebuleair.cov);
+debug_outln_info(F("NebuleAir T°:"), nebuleair.t);
+debug_outln_info(F("NebuleAir RH: "), nebuleair.h);
+debug_outln_info(F("NebuleAir P: "), nebuleair.p);
+debug_outln_info(F("Year:: "), matrix_time.year);
+debug_outln_info(F("Month: "), matrix_time.month);
+debug_outln_info(F("Day: "), matrix_time.day);
+debug_outln_info(F("Hour: "), matrix_time.hour);
+debug_outln_info(F("Minute: "), matrix_time.minute);
+debug_outln_info(F("Second: "), matrix_time.second);
 }
 }
 
@@ -4115,17 +4565,68 @@ void setup()
 	esp_chipid += String((uint32_t)ESP.getEfuseMac(), HEX);
 	esp_chipid.toUpperCase();
 
-	Wire.onReceive(onReceive1);
-	Wire.onRequest(onRequest);
+	Debug.println(F("I2C Slave"));
+	// Wire.begin((uint8_t)I2C_SLAVE_ADDR,I2C_PIN_SDA,I2C_PIN_SCL);
 	Wire.begin((uint8_t)I2C_SLAVE_ADDR);
-	Wire1.begin(I2C_PIN_SDA_2, I2C_PIN_SCL_2);  //REVOIRLES PINS
 
-	while(!get_config)
+    Debug.println(F("I2C RTC")); 
+	Wire1.begin(I2C_PIN_SDA_2, I2C_PIN_SCL_2);  //REVOIRLES PINS
+	
+	Wire.onRequest(onRequestFurther); //toujours valable
+
+	Wire.onReceive(onReceiveMatrix);
+	while(!get_matrix && further == 0x00)
 	{
-		Debug.println("Wait for config...");
+		Debug.println("Wait for matrix config...");
+	}
+	//onRequestFurther will be activated => further = false
+	Wire.onReceive(onReceiveWifi);
+
+	while(!get_wifi && further == 0x01)
+	{
+		Debug.println("Wait for wifi config...");
+	}
+	
+	//onRequestFurther will be activated => further = false
+
+	Wire.onReceive(onReceiveWifiTest);
+	while(!get_wifi_test && further == 0x02)
+	{
+		Debug.println("Wait for wifi test...");
+	}
+
+	//onRequestFurther will be activated => further = false
+
+	Wire.onReceive(onReceiveEthernet);
+	while(!get_ethernet && further == 0x03)
+	{
+		Debug.println("Wait for Ethernet start...");
+	}
+	
+	Wire.onReceive(onReceiveEthernetTest);
+	while(!get_ethernet_test && further == 0x04)
+	{
+		Debug.println("Wait for Ethernet test...");
+	}
+
+	Wire.onReceive(onReceiveLora);
+	while(!get_lora && further == 0x05)
+	{
+		Debug.println("Wait for LoRaWAN start...");
+	}
+	
+	Wire.onReceive(onReceiveLoraTest);
+	while(!get_lora_test && further == 0x06)
+	{
+		Debug.println("Wait for lora test...");
+	}
+
+	Wire.onReceive(onReceiveConfig);
+	while(!get_config && further == 0x07)
+	{
+		Debug.println("Wait for whole config...");
 	}
     
-
 cfg::has_sdcard = config_byte[0];
 cfg::has_matrix = config_byte[1];
 cfg::has_wifi = config_byte[2];
@@ -4186,7 +4687,7 @@ current_time += "Z";
 cfg::show_nebuleair = config_byte[26];
 cfg::height_above_sealevel = word(config_byte[27], config_byte[28]);
 
-debug_outln_info(F("ModuleAirV2: " SOFTWARE_VERSION_STR "/"), String(CURRENT_LANG));
+debug_outln_info(F("ModuleAirV3: " SOFTWARE_VERSION_STR "/"), String(CURRENT_LANG));
 debug_outln_info(F("---- Config ----"));
 debug_outln_info(F("SD: "), cfg::has_sdcard);
 debug_outln_info(F("Matrix: "), cfg::has_matrix);
@@ -4207,11 +4708,6 @@ debug_outln_info(F("Time RTC: "), current_time);
 debug_outln_info(F("Show NebuleAir: "), cfg::show_nebuleair);
 debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 
-
-	if (cfg::has_matrix)
-	{
-		init_matrix();
-	}
 
 	if (cfg::npm_read)
 	{
@@ -4249,36 +4745,10 @@ debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 
 	debug_outln_info(F("\nChipId: "), esp_chipid);
 
-	if (cfg::has_matrix)
-	{
-		display.fillScreen(myBLACK);
-		display.setTextColor(myWHITE);
-		display.setFont(NULL);
-		display.setCursor(1, 0);
-		display.setTextSize(1);
-		display.print("Activation");
-		display.setCursor(1, 11);
-		display.print("WiFi");
-		for (int i = 0; i < 5; i++)
-		{
-			display.fillRect(47, 15, 16, 16, myBLACK);
-			drawImage(47, 15, 16, 16, wifiloop1);
-			delay(200);
-			display.fillRect(47, 15, 16, 16, myBLACK);
-			drawImage(47, 15, 16, 16, wifiloop2);
-			delay(200);
-			display.fillRect(47, 15, 16, 16, myBLACK);
-			drawImage(47, 15, 16, 16, wifiloop3);
-			delay(200);
-			display.fillRect(47, 15, 16, 16, myBLACK);
-			drawImage(47, 15, 16, 16, wifiloop4);
-			delay(200);
-			display.fillRect(47, 15, 16, 16, myBLACK);
-			drawImage(47, 15, 16, 16, wifiloop5);
-			delay(200);
-		}
-		display.fillScreen(myBLACK);
-	}
+	// if (cfg::has_matrix)
+	// {
+		
+	// }
 
 	powerOnTestSensors();
 
@@ -4351,7 +4821,8 @@ debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 
 	Debug.printf("End of void setup()\n");
 	time_end_setup = millis();
-	Wire.onReceive(onReceive2);
+	Wire.onRequest(onRequestData);
+	Wire.onReceive(onReceive4);
 }
 
 void loop()

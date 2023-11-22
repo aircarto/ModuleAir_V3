@@ -14,10 +14,16 @@
 #ifndef _SD_DEFINES_H_
 #define _SD_DEFINES_H_
 
-#define SD_SPI_BUS_CLK D14
-#define SD_SPI_BUS_MOSI D13
-#define SD_SPI_BUS_MISO D12 
-#define SD_SPI_BUS_SS D4 
+// #define SD_SPI_BUS_CLK D14
+// #define SD_SPI_BUS_MOSI D13
+// #define SD_SPI_BUS_MISO D12 
+// #define SD_SPI_BUS_SS D4 
+
+#define SD_SPI_BUS_CLK D18
+#define SD_SPI_BUS_MOSI D23
+#define SD_SPI_BUS_MISO D19 
+#define SD_SPI_BUS_SS D5
+
 
 typedef enum {
     CARD_NONE,

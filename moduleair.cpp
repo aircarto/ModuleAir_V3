@@ -12,10 +12,10 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 #include <hal/hal.h>
 #include <SPI.h>
 #include <Wire.h>
-// #include <ETH.h>
 #include <Ethernet.h>
-// #include <Ethernet2.h>
-//#include <Ethernet3.h>
+#include <EthernetUdp.h>
+#include <SSLClient.h>
+#include "trust_anchors.h" // A CREER POUR AIRCARTO ETC
 #include <RTClib.h>
 
 /*****************************************************************
@@ -146,7 +146,7 @@ namespace cfg
 
 	unsigned height_above_sealevel = HEIGHT_ABOVE_SEALEVEL;
 
-	unsigned utc_offset = UTC_OFFSET;  //AJOUTER dans l'interface
+	unsigned utc_offset = UTC_OFFSET; //AJOUTER dans l'interface
 
 	// send to "APIs"
 	bool send2dusti = SEND2SENSORCOMMUNITY;
@@ -183,7 +183,6 @@ namespace cfg
 	// NebuleAir
 	bool show_nebuleair = SHOW_NEBULEAIR;
 	char id_nebuleair[LEN_ID] = ID_NEBULEAIR;
-
 
 	bool rgpd = RGPD;
 
@@ -290,7 +289,7 @@ struct sensordata
 
 struct sensordata nebuleair
 {
-	-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0
+	- 1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0
 };
 
 /*****************************************************************
@@ -308,20 +307,37 @@ struct forecast
 
 struct forecast atmoSud
 {
-	-1.0, -1.0, -1.0, -1.0, -1.0, -1.0
+	- 1.0, -1.0, -1.0, -1.0, -1.0, -1.0
 };
 
 uint8_t arrayDownlink[LEN_DOWNLINK];
 uint8_t forecast_selector;
 
+
+/*****************************************************************
+ * Further : transmission controllers                                                 *
+ *****************************************************************/
+
+bool cfg_matrix_sent = false;
+bool cfg_wifi_sent = false;
+bool connect_wifi = false;
+bool wifi_config = false;
+bool cfg_ethernet_sent = false;
+bool test_ethernet = false;
+bool cfg_lora_sent = false;
+bool test_lora = false;
+bool whole_config_sent = false;
+
 /*****************************************************************
  * I2C requests                                       *
  *****************************************************************/
 
-
 byte config_byte[LEN_CONFIG_BYTE] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 byte data_byte[LEN_DATA_BYTE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 byte request_byte[LEN_REQUEST];
+byte further;
+byte wifi_byte[LEN_WIFI_BYTE] = {0x00, 0x00};
+byte lora_byte[LEN_WIFI_BYTE] = {0x00, 0x00};
 
 union int16_2_byte
 {
@@ -368,12 +384,11 @@ unsigned long min_micro = 1000000000;
 unsigned long max_micro = 0;
 
 unsigned long sending_time = 0;
-unsigned long last_update_attempt;
-// int last_update_returncode;
 int last_sendData_returncode;
 
 bool wifi_connection_lost;
 bool lora_connection_lost;
+bool ethernet_connection_lost;
 
 uint8_t error; //for wire
 
@@ -398,9 +413,8 @@ static float pressure_at_sealevel(const float temperature, const float pressure)
 {
 	float pressure_at_sealevel;
 
-		// pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * readCorrectionOffset(cfg::height_above_sealevel)))), -5.255f);
-		pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * cfg::height_above_sealevel))), -5.255f); //A VERIFIER
-
+	// pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * readCorrectionOffset(cfg::height_above_sealevel)))), -5.255f);
+	pressure_at_sealevel = pressure * pow(((temperature + 273.15f) / (temperature + 273.15f + (0.0065f * cfg::height_above_sealevel))), -5.255f); //A VERIFIER
 
 	return pressure_at_sealevel;
 }
@@ -444,9 +458,9 @@ uint32_t no2_sum = 0;
 uint16_t no2_val_count = 0;
 
 String last_data_string;
-int last_signal_strength;
+int last_signal_strength_wifi;
+int last_signal_strength_lorawan;
 int last_disconnect_reason;
-// int last_connect_reason;
 
 String esp_chipid;
 
@@ -706,8 +720,6 @@ static void createLoggerConfigs()
 		loggerConfigs[LoggerCustom2].destport = 443;
 	}
 }
-
-
 
 /*****************************************************************
  * html helper functions                                         *
@@ -1081,7 +1093,6 @@ static void webserver_config_send_body_get(String &page_content)
 
 	server.sendContent(page_content);
 
-
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(5));
 
 	page_content += FPSTR("<b>");
@@ -1120,13 +1131,11 @@ static void webserver_config_send_body_get(String &page_content)
 
 	add_form_checkbox_sensor(Config_ccs811_read, FPSTR(INTL_CCS811));
 
-
 	page_content += FPSTR(WEB_BR_LF_B);
 	page_content += FPSTR(INTL_NO2_SENSORS);
 	page_content += FPSTR(WEB_B_BR);
 
 	add_form_checkbox_sensor(Config_enveano2_read, FPSTR(INTL_ENVEANO2));
-
 
 	// Paginate page after ~ 1500 Bytes
 	server.sendContent(page_content);
@@ -1198,28 +1207,45 @@ static void webserver_config_send_body_get(String &page_content)
 	{
 		Debug.println("Failed to obtain time");
 		timestringntp = "2000-00-00T00:00:00Z";
-	}else{
-			timestringntp += "20";
-			timestringntp += String(timeinfo.tm_year-100);
-			timestringntp += "-";
-			if (timeinfo.tm_mon + 1 < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_mon + 1);
-			timestringntp += "-";
-			if (timeinfo.tm_mday < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_mday);
-			timestringntp += "T";
-			if (timeinfo.tm_hour < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_hour);
-			timestringntp += ":";
-			if (timeinfo.tm_min < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_min);
-			timestringntp += ":";
-			if (timeinfo.tm_sec < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_sec);
-			timestringntp += "Z";
+	}
+	else
+	{
+		timestringntp += "20";
+		timestringntp += String(timeinfo.tm_year - 100);
+		timestringntp += "-";
+		if (timeinfo.tm_mon + 1 < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_mon + 1);
+		timestringntp += "-";
+		if (timeinfo.tm_mday < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_mday);
+		timestringntp += "T";
+		if (timeinfo.tm_hour < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_hour);
+		timestringntp += ":";
+		if (timeinfo.tm_min < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_min);
+		timestringntp += ":";
+		if (timeinfo.tm_sec < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_sec);
+		timestringntp += "Z";
 	}
 
-	page_content += timestringntp;	
+	page_content += timestringntp;
 	page_content += F("<br/><br/>");
 
 	page_content += F("<b>" INTL_TIME_ZONE "</b>&nbsp;");
@@ -1231,105 +1257,108 @@ static void webserver_config_send_body_get(String &page_content)
 	page_content += F("<br/>");
 
 	String current_time;
-	if(rtc_ok){
-	now = rtc.now();
-	current_time += String(now.year(), DEC);
-	current_time += "-";
-
-	if (now.month() < 10)
+	if (rtc_ok)
 	{
-		current_time += "0";
-	}
-	current_time += String(now.month(), DEC);
-	current_time += "-";
+		now = rtc.now();
+		current_time += String(now.year(), DEC);
+		current_time += "-";
 
-	if (now.day() < 10)
+		if (now.month() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.month(), DEC);
+		current_time += "-";
+
+		if (now.day() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.day(), DEC);
+
+		current_time += "T";
+		if (now.hour() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.hour(), DEC);
+		current_time += ":";
+
+		if (now.minute() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.minute(), DEC);
+		current_time += ":";
+
+		if (now.second() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.second());
+		current_time += "Z";
+	}
+	else
 	{
-		current_time += "0";
-	}
-	current_time += String(now.day(),DEC);
 
-	current_time += "T";
-	if (now.hour() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.hour(), DEC);
-	current_time += ":";
-
-	if (now.minute() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.minute(), DEC);
-	current_time += ":";
-
-	if (now.second() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.second());
-	current_time += "Z";
-	}else{
-
-	current_time = "2000-00-00T00:00:00Z";
+		current_time = "2000-00-00T00:00:00Z";
 	}
 
-	page_content += current_time;	
+	page_content += current_time;
 	page_content += F("<br/><br/>");
 
 	page_content += FPSTR(TABLE_TAG_OPEN);
-page_content += F("<tr>"
-          "<td title='[&lt;= 4]'>" INTL_YEAR ":&nbsp;</td>"
-          "<td style='width:4em'>"
-          "<input type='number' form='secondar' name='year' id='year' placeholder='Year' value='");	  
+	page_content += F("<tr>"
+					  "<td title='[&lt;= 4]'>" INTL_YEAR ":&nbsp;</td>"
+					  "<td style='width:4em'>"
+					  "<input type='number' form='secondar' name='year' id='year' placeholder='Year' value='");
 	page_content += String(now.year(), DEC);
 	page_content += F("' maxlength='4'/>"
-          "</td></tr>"
-		  "<tr>"
-          "<td title='[&lt;= 2]'>" INTL_MONTH ":&nbsp;</td>"
-          "<td style='width:2em'>"
-          "<input type='number' form='secondar' name='month' id='month' placeholder='Month' value='");
+					  "</td></tr>"
+					  "<tr>"
+					  "<td title='[&lt;= 2]'>" INTL_MONTH ":&nbsp;</td>"
+					  "<td style='width:2em'>"
+					  "<input type='number' form='secondar' name='month' id='month' placeholder='Month' value='");
 	page_content += String(now.month(), DEC);
 	page_content += F("' maxlength='2'/>"
-          "</td></tr>"
-		  "<tr>"
-          "<td title='[&lt;= 2]'>" INTL_DAY ":&nbsp;</td>"
-          "<td style='width:2em'>"
-          "<input type='number' form='secondar' name='day' id='day' placeholder='Day' value='");
+					  "</td></tr>"
+					  "<tr>"
+					  "<td title='[&lt;= 2]'>" INTL_DAY ":&nbsp;</td>"
+					  "<td style='width:2em'>"
+					  "<input type='number' form='secondar' name='day' id='day' placeholder='Day' value='");
 	page_content += String(now.day(), DEC);
 	page_content += F("' maxlength='2'/>"
-          "</td></tr>"
-		  "<tr>"
-          "<td title='[&lt;= 2]'>" INTL_HOUR ":&nbsp;</td>"
-          "<td style='width:2em'>"
-          "<input type='number' form='secondar' name='hour' id='hour' placeholder='Hour' value='");
-	page_content += String(now.hour(), DEC);  
+					  "</td></tr>"
+					  "<tr>"
+					  "<td title='[&lt;= 2]'>" INTL_HOUR ":&nbsp;</td>"
+					  "<td style='width:2em'>"
+					  "<input type='number' form='secondar' name='hour' id='hour' placeholder='Hour' value='");
+	page_content += String(now.hour(), DEC);
 	page_content += F("' maxlength='2'/>"
-          "</td></tr>"
-		  "<tr>"
-          "<td title='[&lt;= 2]'>" INTL_MINUTE ":&nbsp;</td>"
-          "<td style='width:2em'>"
-          "<input type='number' form='secondar' name='minute' id='minute' placeholder='Minute' value='");
+					  "</td></tr>"
+					  "<tr>"
+					  "<td title='[&lt;= 2]'>" INTL_MINUTE ":&nbsp;</td>"
+					  "<td style='width:2em'>"
+					  "<input type='number' form='secondar' name='minute' id='minute' placeholder='Minute' value='");
 	page_content += String(now.minute(), DEC);
 	page_content += F("' maxlength='2'/>"
-          "</td></tr>"
-		  "<tr>"
-          "<td title='[&lt;= 2]'>" INTL_SECOND ":&nbsp;</td>"
-          "<td style='width:2em'>"
-          "<input type='number' form='secondar' name='second' id='second' placeholder='Second' value='");
+					  "</td></tr>"
+					  "<tr>"
+					  "<td title='[&lt;= 2]'>" INTL_SECOND ":&nbsp;</td>"
+					  "<td style='width:2em'>"
+					  "<input type='number' form='secondar' name='second' id='second' placeholder='Second' value='");
 	page_content += String(now.second(), DEC);
 	page_content += F("' maxlength='2'/>"
-          "</td></tr>");
+					  "</td></tr>");
 	page_content += F("<tr><td>"
-	"<input type='submit' form='secondar' class='s_red' name='submit' value='" INTL_SET_TIME "'/>"
-	"</td></tr></table>");
+					  "<input type='submit' form='secondar' class='s_red' name='submit' value='" INTL_SET_TIME "'/>"
+					  "</td></tr></table>");
 
 	server.sendContent(page_content);
 	page_content = emptyString;
 
 	page_content = tmpl(FPSTR(WEB_DIV_PANEL), String(8));
-		//AJOUTER TEXTE, LIEN etc.
+	//AJOUTER TEXTE, LIEN etc.
 	add_form_checkbox(Config_rgpd, FPSTR(INTL_RGPD_ACCEPT));
 
 	// server.sendContent(page_content);
@@ -1408,13 +1437,13 @@ static void sensor_restart()
 
 	debug_outln_info(F("Restart."));
 
-Wire.beginTransmission(I2C_SLAVE_ADDR);
+	Wire.beginTransmission(I2C_SLAVE_ADDR);
 
-  data_byte[68] = 0x01;
-  Wire.write(data_byte, sizeof(data_byte));
-  Debug.println("Restart ESP32 Sens!");
+	data_byte[68] = 0x01;
+	Wire.write(data_byte, sizeof(data_byte));
+	Debug.println("Restart ESP32 Sens!");
 
-error = Wire.endTransmission(true);
+	error = Wire.endTransmission(true);
 
 	delay(500);
 	ESP.restart();
@@ -1571,7 +1600,9 @@ static void webserver_values()
 	const String unit_LA(F("dB(A)"));
 	float dew_point_temp;
 
-	const int signal_quality = calcWiFiSignalQuality(last_signal_strength);
+	const int signal_quality_wifi = calcWiFiSignalQuality(last_signal_strength_wifi);
+	const int signal_quality_lorawan = calcLoRaWANSignalQuality(last_signal_strength_lorawan);
+
 	debug_outln_info(F("ws: values ..."));
 	if (!count_sends)
 	{
@@ -1683,9 +1714,17 @@ static void webserver_values()
 	server.sendContent(page_content);
 	page_content = emptyString;
 
-	add_table_value(F("WiFi"), FPSTR(INTL_SIGNAL_STRENGTH), String(last_signal_strength), "dBm");
-	add_table_value(F("WiFi"), FPSTR(INTL_SIGNAL_QUALITY), String(signal_quality), "%");
+	if (cfg::has_wifi)
+	{
+		add_table_value(F("WiFi"), FPSTR(INTL_SIGNAL_STRENGTH), String(last_signal_strength_wifi), "dBm");
+		add_table_value(F("WiFi"), FPSTR(INTL_SIGNAL_QUALITY), String(signal_quality_wifi), "%");
+	}
 
+	if (cfg::has_lora)
+	{
+		add_table_value(F("LoRaWAN"), FPSTR(INTL_SIGNAL_STRENGTH), String(last_signal_strength_lorawan), "dBm");
+		add_table_value(F("LoRaWAN"), FPSTR(INTL_SIGNAL_QUALITY), String(signal_quality_lorawan), "%");
+	}
 	page_content += FPSTR(TABLE_TAG_CLOSE_BR);
 	page_content += FPSTR(BR_TAG);
 	end_html_page(page_content);
@@ -1721,74 +1760,93 @@ static void webserver_status()
 	// decomposed = gmtime(&now);
 	// add_table_row_from_value(page_content, FPSTR(INTL_TIME_UTC), ctime(&now));
 
-
 	String timestringntp;
 	if (!getLocalTime(&timeinfo))
 	{
 		Debug.println("Failed to obtain time");
-	}else{
-			timestringntp += "20";
-			timestringntp += String(timeinfo.tm_year-100);
-			timestringntp += "-";
-			if (timeinfo.tm_mon + 1 < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_mon + 1);
-			timestringntp += "-";
-			if (timeinfo.tm_mday < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_mday);
-			timestringntp += "T";
-			if (timeinfo.tm_hour < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_hour);
-			timestringntp += ":";
-			if (timeinfo.tm_min < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_min);
-			timestringntp += ":";
-			if (timeinfo.tm_sec < 10){timestringntp += "0";}
-			timestringntp += String(timeinfo.tm_sec);
-			timestringntp += "Z";
+	}
+	else
+	{
+		timestringntp += "20";
+		timestringntp += String(timeinfo.tm_year - 100);
+		timestringntp += "-";
+		if (timeinfo.tm_mon + 1 < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_mon + 1);
+		timestringntp += "-";
+		if (timeinfo.tm_mday < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_mday);
+		timestringntp += "T";
+		if (timeinfo.tm_hour < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_hour);
+		timestringntp += ":";
+		if (timeinfo.tm_min < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_min);
+		timestringntp += ":";
+		if (timeinfo.tm_sec < 10)
+		{
+			timestringntp += "0";
+		}
+		timestringntp += String(timeinfo.tm_sec);
+		timestringntp += "Z";
 	}
 	add_table_row_from_value(page_content, FPSTR(INTL_TIME_UTC), timestringntp);
 	add_table_row_from_value(page_content, FPSTR(INTL_UTC_OFFSET), String(cfg::utc_offset));
 	String current_time;
-	if(rtc_ok){
-	now = rtc.now();
-	current_time += String(now.year(), DEC);
-	current_time += "-";
-
-	if (now.month() < 10)
+	if (rtc_ok)
 	{
-		current_time += "0";
-	}
-	current_time += String(now.month(), DEC);
-	current_time += "-";
+		now = rtc.now();
+		current_time += String(now.year(), DEC);
+		current_time += "-";
 
-	if (now.day() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.day(),DEC);
+		if (now.month() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.month(), DEC);
+		current_time += "-";
 
-	current_time += "T";
-	if (now.hour() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.hour(), DEC);
-	current_time += ":";
+		if (now.day() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.day(), DEC);
 
-	if (now.minute() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.minute(), DEC);
-	current_time += ":";
+		current_time += "T";
+		if (now.hour() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.hour(), DEC);
+		current_time += ":";
 
-	if (now.second() < 10)
-	{
-		current_time += "0";
+		if (now.minute() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.minute(), DEC);
+		current_time += ":";
+
+		if (now.second() < 10)
+		{
+			current_time += "0";
+		}
+		current_time += String(now.second());
+		current_time += "Z";
 	}
-	current_time += String(now.second());
-	current_time += "Z";
-	}else{
+	else
+	{
 		current_time = "2000-00-00T00:00:00Z";
 	}
 
@@ -1803,7 +1861,7 @@ static void webserver_status()
 	page_content += F("<tr><td colspan='2'><b>" INTL_ERROR "</b></td></tr>");
 	String wifiStatus(WiFi_error_count);
 	wifiStatus += '/';
-	wifiStatus += String(last_signal_strength);
+	wifiStatus += String(last_signal_strength_wifi);
 	wifiStatus += '/';
 	wifiStatus += String(last_disconnect_reason);
 	add_table_row_from_value(page_content, F("WiFi"), wifiStatus);
@@ -1879,22 +1937,22 @@ static void webserver_serial()
 	server.send(s.length() ? 200 : 204, FPSTR(TXT_CONTENT_TYPE_TEXT_PLAIN), s);
 }
 
-
 /*****************************************************************
  * Webserver Set Time in RTC module                             *
  *****************************************************************/
 static void webserver_settime()
 {
-	Debug.print("Set ddasdasdasdasd");
+	Debug.print("Set RTC time");
 
-	if (server.hasArg("year") && server.hasArg("month") && server.hasArg("day") && server.hasArg("hour") && server.hasArg("minute") &&server.hasArg("second"))
+	if (server.hasArg("year") && server.hasArg("month") && server.hasArg("day") && server.hasArg("hour") && server.hasArg("minute") && server.hasArg("second"))
 	{
 		Debug.print("Set date/time");
 
 		rtc.adjust(DateTime(server.arg("year").toInt(), server.arg("month").toInt(), server.arg("day").toInt(), server.arg("hour").toInt(), server.arg("minute").toInt(), server.arg("second").toInt()));
-
-	}else{
-	Debug.print("Can't set date/time");
+	}
+	else
+	{
+		Debug.print("Can't set date/time");
 	}
 
 	//RELOAD ALL After
@@ -2220,7 +2278,7 @@ static void webserver_static()
 /*****************************************************************
  * Webserver setup                                               *
  *****************************************************************/
-static void setup_webserver()
+static void setup_webserver_wifi()
 {
 	server.on("/", webserver_root);
 	server.on(F("/config"), webserver_config);
@@ -2328,7 +2386,7 @@ static void wifiConfig()
 	dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
 	dnsServer.start(53, "*", apIP); // 53 is port for DNS server
 
-	setup_webserver();
+	setup_webserver_wifi();
 
 	// 10 minutes timeout for wifi config
 	last_page_load = millis();
@@ -2337,7 +2395,7 @@ static void wifiConfig()
 	{
 		dnsServer.processNextRequest();
 		server.handleClient();
-		yield();	
+		yield();
 	}
 
 	WiFi.softAPdisconnect(true);
@@ -2345,17 +2403,18 @@ static void wifiConfig()
 	delay(100);
 	// WiFi.disconnect(true, true);
 	WiFi.mode(WIFI_OFF); //A tenter
-
+	
 	debug_outln_info(F("---- Result Webconfig ----"));
 	debug_outln_info(F("WiFi: "), cfg::has_wifi);
 	debug_outln_info(F("LoRa: "), cfg::has_lora);
+	debug_outln_info(F("Ethernet: "), cfg::has_ethernet);
 	debug_outln_info(F("APPEUI: "), cfg::appeui);
 	debug_outln_info(F("DEVEUI: "), cfg::deveui);
 	debug_outln_info(F("APPKEY: "), cfg::appkey);
 	debug_outln_info(F("WLANSSID: "), cfg::wlanssid);
 	debug_outln_info(FPSTR(DBG_TXT_SEP));
 	debug_outln_info_bool(F("NPM: "), cfg::npm_read);
-	debug_outln_info_bool(F("BMX: "), cfg::bme280_read);
+	debug_outln_info_bool(F("BME: "), cfg::bme280_read);
 	debug_outln_info_bool(F("MHZ16: "), cfg::mhz16_read);
 	debug_outln_info_bool(F("MHZ19: "), cfg::mhz19_read);
 	debug_outln_info_bool(F("CCS811: "), cfg::ccs811_read);
@@ -2426,7 +2485,7 @@ gps getGPS(String id)
 
 		if (strcmp(error.c_str(), "Ok") == 0)
 		{
-			return {json["latitude"], json["longitude"]};
+			return {json[0]["latitude"], json[0]["longitude"]};
 		}
 		else
 		{
@@ -2447,7 +2506,6 @@ gps getGPS(String id)
 /*****************************************************************
  * get UTC Offset                                       *
  *****************************************************************/
-
 
 // https://worldtimeapi.org/api/ip
 
@@ -2475,7 +2533,7 @@ uint8_t getOffset()
 		DeserializationError error = deserializeJson(json, reponseJSON);
 		if (strcmp(error.c_str(), "Ok") == 0)
 		{
-			return ((int)(json["dst_offset"]) + (int)(json["raw_offset"]))/3600;
+			return ((int)(json["dst_offset"]) + (int)(json["raw_offset"])) / 3600;
 		}
 		else
 		{
@@ -2491,15 +2549,13 @@ uint8_t getOffset()
 		return 0;
 		http.end();
 	}
-
 }
-
 
 /*****************************************************************
  * get NebuleAir                                      *
  *****************************************************************/
 
-sensordata getNebuleAir(char* id)
+sensordata getNebuleAir(char *id)
 {
 	String reponseAPI;
 	StaticJsonDocument<JSON_BUFFER_SIZE2> json;
@@ -2560,6 +2616,7 @@ static WiFiEventId_t STAstopEventHandler;
 
 static void connectWifi()
 {
+
 	disconnectEventHandler = WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info)
 										  {
 											  if (!wifi_connection_lost)
@@ -2608,11 +2665,10 @@ static void connectWifi()
 
 	debug_outln_info(FPSTR(DBG_TXT_CONNECTING_TO), cfg::wlanssid);
 
-	waitForWifiToConnect(20); //diminur ici ???  //40
+	waitForWifiToConnect(20);
 	debug_outln_info(emptyString);
 
-	//if (WiFi.status() != WL_CONNECTED) //Waitforwifistatus ?
-	if (WiFi.waitForConnectResult(10000) != WL_CONNECTED) //Waitforwifistatus ?
+	if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
 	{
 		Debug.println("Force change WiFi config");
 		wifi_connection_lost = true;
@@ -2620,10 +2676,33 @@ static void connectWifi()
 		// strcpy_P(cfg::wlanssid, "TYPE SSID");
 		// strcpy_P(cfg::wlanpwd, "TYPE PWD");
 
+		// if (cfg::has_matrix)
+		// {
+			Wire.beginTransmission(I2C_SLAVE_ADDR);
+			Wire.write(wifi_byte, sizeof(wifi_byte)); //0x00 par défaut
+			Debug.println("No WiFi connection");
+			error = Wire.endTransmission(true);
+			connect_wifi = false; 
+			wifi_config = true;
+
+		// }
+
 		wifiConfig();
 	}
 	else
 	{
+		// if (cfg::has_matrix)
+		// {
+			wifi_byte[0] = 0x01;
+			wifi_byte[1] = (byte)calcWiFiSignalQuality(WiFi.RSSI());
+			Wire.beginTransmission(I2C_SLAVE_ADDR);
+			Wire.write(wifi_byte, sizeof(wifi_byte));
+			Debug.println("WiFi connection OK");
+			error = Wire.endTransmission(true);
+			connect_wifi = true;
+			wifi_config = false;
+		// }
+
 		wifi_connection_lost = false;
 		Debug.println("Get coordinates..."); //only once!
 		gps coordinates = getGPS(esp_chipid);
@@ -2643,14 +2722,13 @@ static void connectWifi()
 	}
 
 	debug_outln_info(F("WiFi connected, IP is: "), WiFi.localIP().toString());
-	last_signal_strength = WiFi.RSSI(); //RSSI ICI!!!!
+	last_signal_strength_wifi = WiFi.RSSI(); //RSSI ICI!!!!
 
 	if (MDNS.begin(cfg::fs_ssid))
 	{
 		MDNS.addService("http", "tcp", 80);
 		MDNS.addServiceTxt("http", "tcp", "PATH", "/config");
 	}
-
 }
 
 static WiFiClient *getNewLoggerWiFiClient(const LoggerEntry logger)
@@ -2904,7 +2982,7 @@ static void send_csv(const String &data)
  * get data from LoRaWAN downlink payload                                        *
  *****************************************************************/
 
-static void getDataLora(uint8_t array[LEN_DOWNLINK])  //AJOUTER NEBULAEAIR
+static void getDataLora(uint8_t array[LEN_DOWNLINK]) //AJOUTER NEBULAEAIR
 {
 
 	union
@@ -3056,19 +3134,15 @@ float getDataAtmoSud(unsigned int type)
 	}
 }
 
-
 /*****************************************************************
    I2C COM
  *****************************************************************/
 
-
 String datai2c;
-
 
 /*****************************************************************
    Functions
  *****************************************************************/
-
 
 static void logEnabledAPIs()
 {
@@ -3105,18 +3179,17 @@ static void setupNetworkTime()
 	static char ntpServer1[18], ntpServer2[18];
 	strcpy_P(ntpServer1, NTP_SERVER_1);
 	strcpy_P(ntpServer2, NTP_SERVER_2);
-	configTime(0, 0, ntpServer1, ntpServer2);
+	configTime(0, 0, ntpServer1, ntpServer2); //offset ici ?
 
-		// while(!sntp_time_set)
-		// {
-		// 	debug_outln_info(F("NTP sync not finished yet"));
-		// }
+	// while(!sntp_time_set)
+	// {
+	// 	debug_outln_info(F("NTP sync not finished yet"));
+	// }
 
 	// while(!getLocalTime(&timeinfo))
 	// {
 	// 	Debug.println("Waiting for NTP");
 	// }
-
 }
 
 static unsigned long sendDataToOptionalApis(const String &data)
@@ -3182,7 +3255,7 @@ void os_getDevKey(u1_t *buf) { memcpy_P(buf, appkey_hex, 16); }
 
 //ADD DATE TIME
 
-uint8_t datalora[LEN_PAYLOAD_LORA] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff};
+uint8_t datalora[LEN_PAYLOAD_LORA] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff};
 //		                			  conf|    npm    |     npm   |   npm	  |   npm	  |	npm	      |	  npm	  |	co2	      |	 co2      |	cov       |   no2     |    temp   |humi |   press   |       lat             |       lon             | y  |                             |sel
 
 //Peut-être changer l'indianess pour temp = inverser
@@ -3204,6 +3277,9 @@ uint8_t datalora[LEN_PAYLOAD_LORA] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 // 0x00, 0x00, 0x00, 0x00, lat 0.0 float
 // 0x00, 0x00, 0x00, 0x00, lon 0.0 float
 // 0xff sel -1
+
+
+bool first_lora_payload = true;
 
 const unsigned TX_INTERVAL = (cfg::sending_intervall_ms) / 1000;
 
@@ -3282,7 +3358,7 @@ void do_send(osjob_t *j)
 		Debug.print("Size of Data:");
 		Debug.println(sizeof(datalora));
 
-		LMIC_setTxData2(1, datalora, sizeof(datalora) - 1, 1);  //1 ici pour ack
+		LMIC_setTxData2(1, datalora, sizeof(datalora) - 1, 1); //1 ici pour ack
 
 		Debug.println(F("Packet queued"));
 	}
@@ -3356,10 +3432,10 @@ void onEvent(ev_t ev)
 		||     break;
 		*/
 	case EV_JOIN_FAILED:
-		Debug.println(F("EV_JOIN_FAILED")); 
+		Debug.println(F("EV_JOIN_FAILED"));
 		break;
 	case EV_REJOIN_FAILED:
-		Debug.println(F("EV_REJOIN_FAILED")); 
+		Debug.println(F("EV_REJOIN_FAILED"));
 		break;
 	case EV_TXCOMPLETE:
 		Debug.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
@@ -3367,11 +3443,37 @@ void onEvent(ev_t ev)
 		{
 			Debug.println(F("Received ack"));
 			lora_connection_lost = false;
+
+			if(first_lora_payload){
+
+			// if (cfg::has_matrix)
+			// {
+				lora_byte[0] = 0x01;
+				lora_byte[1] = (byte)calcLoRaWANSignalQuality(LMIC.rssi); // REVOIR LES VALEUR LMIC SIGNAL
+				Wire.beginTransmission(I2C_SLAVE_ADDR);
+				Wire.write(lora_byte, sizeof(lora_byte));
+				Debug.println("LoRaWAN connection OK");
+				error = Wire.endTransmission(true);
+				test_lora = true;
+			// }
+			}
 		}
 		else
 		{
 			Debug.println(F("Ack not received"));
 			lora_connection_lost = true;
+
+			if(first_lora_payload){
+
+			// if (cfg::has_matrix)
+			// {
+				Wire.beginTransmission(I2C_SLAVE_ADDR);
+				Wire.write(lora_byte, sizeof(lora_byte));
+				Debug.println("No LoRaWAN connection");
+				error = Wire.endTransmission(true);
+				test_lora = true;
+			// }
+			}
 		}
 
 		if (LMIC.dataLen)
@@ -3521,26 +3623,26 @@ static void prepareTxFrame()
 	datalora[5] = u1.temp_byte[1];
 	datalora[6] = u1.temp_byte[0];
 
-	if (last_value_NPM_N1 != -1.0)
-		u1.temp_int = (int16_t)round(last_value_NPM_N1 * 1000);
-	else
-		u1.temp_int = (int16_t)round(last_value_NPM_N1);
+	// if (last_value_NPM_N1 != -1.0)
+	// 	u1.temp_int = (int16_t)round(last_value_NPM_N1 * 1000);
+	// else
+	u1.temp_int = (int16_t)round(last_value_NPM_N1);
 
 	datalora[7] = u1.temp_byte[1];
 	datalora[8] = u1.temp_byte[0];
 
-	if (last_value_NPM_N10 != -1.0)
-		u1.temp_int = (int16_t)round(last_value_NPM_N10 * 1000);
-	else
-		u1.temp_int = (int16_t)round(last_value_NPM_N10);
+	// if (last_value_NPM_N10 != -1.0)
+	// 	u1.temp_int = (int16_t)round(last_value_NPM_N10 * 1000);
+	// else
+	u1.temp_int = (int16_t)round(last_value_NPM_N10);
 
 	datalora[9] = u1.temp_byte[1];
 	datalora[10] = u1.temp_byte[0];
 
-	if (last_value_NPM_N25 != -1.0)
-		u1.temp_int = (int16_t)round(last_value_NPM_N25 * 1000);
-	else
-		u1.temp_int = (int16_t)round(last_value_NPM_N25);
+	// if (last_value_NPM_N25 != -1.0)
+	// 	u1.temp_int = (int16_t)round(last_value_NPM_N25 * 1000);
+	// else
+	u1.temp_int = (int16_t)round(last_value_NPM_N25);
 
 	datalora[11] = u1.temp_byte[1];
 	datalora[12] = u1.temp_byte[0];
@@ -3594,25 +3696,25 @@ static void prepareTxFrame()
 	datalora[32] = u3.temp_byte[2];
 	datalora[33] = u3.temp_byte[3];
 
-	if(cfg::has_wifi && getLocalTime(&timeinfo))
+	if (cfg::has_wifi && getLocalTime(&timeinfo))
 	{
-	datalora[34] = (int8_t)(timeinfo.tm_year-100);
-	datalora[35] = (int8_t)(timeinfo.tm_mon + 1);
-	datalora[36] = (int8_t)(timeinfo.tm_mday);
-	datalora[37] = (int8_t)(timeinfo.tm_hour);
-	datalora[38] = (int8_t)(timeinfo.tm_min);
-	datalora[39] = (int8_t)(timeinfo.tm_sec);
+		datalora[34] = (int8_t)(timeinfo.tm_year - 100);
+		datalora[35] = (int8_t)(timeinfo.tm_mon + 1);
+		datalora[36] = (int8_t)(timeinfo.tm_mday);
+		datalora[37] = (int8_t)(timeinfo.tm_hour);
+		datalora[38] = (int8_t)(timeinfo.tm_min);
+		datalora[39] = (int8_t)(timeinfo.tm_sec);
 	}
 
-	if(!cfg::has_wifi && rtc_ok)
+	if (!cfg::has_wifi && rtc_ok)
 	{
-	now = rtc.now();
-	datalora[34] = (byte)(now.year()-2000);
-	datalora[35] = (byte)now.month();
-	datalora[36] = (byte)now.day();
-	datalora[37] = (byte)now.hour();
-	datalora[38] = (byte)now.minute();
-	datalora[39] = (byte)now.second();
+		now = rtc.now();
+		datalora[34] = (byte)(now.year() - 2000);
+		datalora[35] = (byte)now.month();
+		datalora[36] = (byte)now.day();
+		datalora[37] = (byte)now.hour();
+		datalora[38] = (byte)now.minute();
+		datalora[39] = (byte)now.second();
 	}
 
 	datalora[40] = forecast_selector;
@@ -3638,6 +3740,569 @@ bool loratest(int lora_dio0)
 		return true;
 	}
 	return false;
+}
+
+/*****************************************************************
+ * Ethernet Stuff                                                  *
+ *****************************************************************/
+
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+const int rand_pin = D33; //RANDO VAL on pin not connected ???? REVOIR PIN
+
+//Set the static IP address to use if the DHCP fails to assign
+IPAddress ip(192, 168, 1, 177);
+IPAddress myDns(192, 168, 1, 1); //No stattic DHCP doit fonctionner
+
+EthernetClient ethernetclient;
+EthernetClient base_client;
+SSLClient ethernetclientssl(base_client, TAs, (size_t)TAs_NUM, rand_pin);
+
+// EthernetServer ethernetserver(80);
+
+// Variables to measure the speed
+unsigned long beginMicros, endMicros;
+unsigned long byteCount = 0;
+
+struct tm_eth
+{
+	int tm_sec;
+	int tm_min;
+	int tm_hour;
+	int tm_day;
+	int tm_mon;
+	int tm_year;
+};
+
+struct tm_eth timeeth;
+
+void WizReset()
+{
+	Debug.print("Resetting Wiz W5500 Ethernet Board...  ");
+	pinMode(D27, OUTPUT);
+	digitalWrite(D27, HIGH);
+	delay(250);
+	digitalWrite(D27, LOW);
+	delay(50);
+	digitalWrite(D27, HIGH);
+	delay(350);
+	Debug.println("Done.");
+}
+
+uint8_t getOffsetEthernet()
+{
+	String reponseAPI;
+	StaticJsonDocument<JSON_BUFFER_SIZE2> json;
+	char reponseJSON[JSON_BUFFER_SIZE2];
+
+	delay(1000);
+	Debug.print("connecting to ");
+	Debug.print("worldtimeapi.org");
+	Debug.println("...");
+
+	// if you get a connection, report back via serial:
+	if (ethernetclientssl.connect("worldtimeapi.org", 443)) //pour https sinon 80
+	{
+		Serial.println("Send Request!");
+		ethernetclientssl.println("GET /api/ip HTTP/1.1");
+		ethernetclientssl.println("Host: worldtimeapi.org");
+		ethernetclientssl.println("Connection: close");
+		ethernetclientssl.println();
+	}
+	else
+	{
+		// if you didn't get a connection to the server:
+		Debug.println("connection failed");
+		return 0;
+	}
+	beginMicros = micros();
+
+	int len = ethernetclientssl.available();
+	while (len == 0)
+	{
+		Debug.println("Wait for client response!");
+		len = ethernetclientssl.available();
+	}
+
+	if (ethernetclientssl.find("\r\n\r\n"))
+	{
+		reponseAPI = ethernetclientssl.readStringUntil('}');
+	}
+	reponseAPI = reponseAPI + "}";
+
+	// if the server's disconnected, stop the client:
+	if (!ethernetclientssl.connected())
+	{
+		endMicros = micros();
+		Debug.println();
+		Debug.println("disconnecting.");
+		ethernetclientssl.stop();
+		Debug.print("Received ");
+		Debug.print(byteCount);
+		Debug.print(" bytes in ");
+		float seconds = (float)(endMicros - beginMicros) / 1000000.0;
+		Debug.print(seconds, 4);
+		float rate = (float)byteCount / seconds / 1000.0;
+		Debug.print(", rate = ");
+		Debug.print(rate);
+		Debug.print(" kbytes/second");
+		Debug.println();
+	}
+
+	debug_outln_info(F("Response: "), reponseAPI);
+	strcpy(reponseJSON, reponseAPI.c_str());
+	DeserializationError error = deserializeJson(json, reponseJSON);
+	if (strcmp(error.c_str(), "Ok") == 0)
+	{
+		return ((int)(json["dst_offset"]) + (int)(json["raw_offset"])) / 3600;
+	}
+	else
+	{
+		Debug.print(F("deserializeJson() failed: "));
+		Debug.println(error.c_str());
+		return 0;
+	}
+}
+
+gps getGPSEthernet(String id)
+{
+	String reponseAPI;
+	StaticJsonDocument<JSON_BUFFER_SIZE2> json;
+	char reponseJSON[JSON_BUFFER_SIZE2];
+
+	gps coordinates{"0.00000", "0.00000"};
+
+	delay(1000);
+	Debug.print("connecting to ");
+	Debug.print("data.moduleair.fr");
+	Debug.println("...");
+	if (ethernetclient.connect("data.moduleair.fr", 80))
+	{
+		ethernetclient.println("GET /get_loc.php?id=" + id + " HTTP/1.1");
+		ethernetclient.println("Host: data.moduleair.fr");
+		ethernetclient.println("Connection: close");
+	}
+	else
+	{
+		// if you didn't get a connection to the server:
+		Debug.println("connection failed");
+		return {"0.00000", "0.00000"};
+	}
+	beginMicros = micros();
+
+	int len = ethernetclient.available();
+	while (len == 0)
+	{
+		Debug.println("Wait for client response!");
+		len = ethernetclient.available();
+	}
+
+
+// ATTENTION DANS LA REPONSE [0] ieème element
+
+
+	if (ethernetclient.find("\r\n\r\n"))
+	{
+		reponseAPI = ethernetclient.readStringUntil('}');
+	}
+
+	reponseAPI = reponseAPI + "}";
+
+	// if the server's disconnected, stop the client:
+	if (!ethernetclientssl.connected())
+	{
+		endMicros = micros();
+		Debug.println();
+		Debug.println("disconnecting.");
+		ethernetclient.stop();
+		Debug.print("Received ");
+		Debug.print(byteCount);
+		Debug.print(" bytes in ");
+		float seconds = (float)(endMicros - beginMicros) / 1000000.0;
+		Debug.print(seconds, 4);
+		float rate = (float)byteCount / seconds / 1000.0;
+		Debug.print(", rate = ");
+		Debug.print(rate);
+		Debug.print(" kbytes/second");
+		Debug.println();
+	}
+
+	debug_outln_info(F("Response: "), reponseAPI);
+	strcpy(reponseJSON, reponseAPI.c_str());
+
+	DeserializationError error = deserializeJson(json, reponseJSON);
+
+	if (strcmp(error.c_str(), "Ok") == 0)
+	{
+		return {json["latitude"], json["longitude"]};
+	}
+	else
+	{
+		Debug.print(F("deserializeJson() failed: "));
+		Debug.println(error.c_str());
+		return {"0.00000", "0.00000"};
+	}
+}
+
+// VOIR SI EVENTS
+static void connectEthernet()
+{
+	Ethernet.init(D5); //OU D15 ?
+	WizReset();
+
+	// start the Ethernet connection:
+	Debug.println("Initialize Ethernet with DHCP:");
+	if (Ethernet.begin(mac) == 0)
+	{
+		Debug.println("Failed to configure Ethernet using DHCP");
+		// Check for Ethernet hardware present
+		if (Ethernet.hardwareStatus() == EthernetNoHardware)
+		{
+			Debug.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+			while (true)
+			{
+				delay(1); // do nothing, no point running without Ethernet hardware
+			}
+		}
+		if (Ethernet.linkStatus() == LinkOFF)
+		{
+			Debug.println("Ethernet cable is not connected.");
+		}
+		// try to configure using IP address instead of DHCP:
+		//Ethernet.begin(mac, ip, myDns);  //USELESS car pas possible savoir.
+		ethernet_connection_lost = true;
+
+		// if (cfg::has_matrix)
+		// {
+			Wire.beginTransmission(I2C_SLAVE_ADDR);
+			Wire.write(0x00);
+			Debug.println("Ethernet not connected");
+			error = Wire.endTransmission(true);
+			test_ethernet = true;
+		// }
+	}
+	else
+	{
+		// if (cfg::has_matrix)
+		// {
+			Wire.beginTransmission(I2C_SLAVE_ADDR);
+			Wire.write(0x01);
+			Debug.println("Ethernet connected");
+			error = Wire.endTransmission(true);
+			test_ethernet = true;
+		// }
+
+		gps coordinates = getGPSEthernet(esp_chipid);
+		latitude_aircarto = coordinates.latitude;
+		longitude_aircarto = coordinates.longitude;
+
+		Debug.println(coordinates.latitude);
+		Debug.println(coordinates.longitude);
+		if (coordinates.latitude != "0.00000" && coordinates.latitude != "0.00000")
+		{
+			strcpy_P(cfg::latitude, latitude_aircarto.c_str()); //replace the values in the firmware but not in the SPIFFS
+			strcpy_P(cfg::longitude, longitude_aircarto.c_str());
+		}
+		cfg::utc_offset = getOffsetEthernet();
+		Debug.println(cfg::utc_offset); //replace the values in the firmware but not in the SPIFFS
+
+		Debug.print("  DHCP assigned IP ");
+		Debug.println(Ethernet.localIP());
+		ethernet_connection_lost = false;
+
+		//A VOIR  NO SERVER ON ETHENET
+		// if (MDNS.begin(cfg::fs_ssid))
+		// {
+		// 	MDNS.addService("http", "tcp", 80);
+		// 	MDNS.addServiceTxt("http", "tcp", "PATH", "/config");
+		// }
+	}
+}
+
+// static void setup_webserver_ethernet()
+// {
+// 	// ethernetserver.on("/", webserver_root);
+// 	// ethernetserver.on(F("/config"), webserver_config);
+// 	// ethernetserver.on(F("/wifi"), webserver_wifi);
+// 	// ethernetserver.on(F("/values"), webserver_values);
+// 	// ethernetserver.on(F("/status"), webserver_status);
+// 	// ethernetserver.on(F("/generate_204"), webserver_config);
+// 	// ethernetserver.on(F("/fwlink"), webserver_config);
+// 	// ethernetserver.on(F("/debug"), webserver_debug_level);
+// 	// ethernetserver.on(F("/serial"), webserver_serial);
+// 	// ethernetserver.on(F("/settime"), webserver_settime);
+// 	// ethernetserver.on(F("/removeConfig"), webserver_removeConfig);
+// 	// ethernetserver.on(F("/reset"), webserver_reset);
+// 	// ethernetserver.on(F("/data.json"), webserver_data_json);
+// 	// ethernetserver.on(F("/metrics"), webserver_metrics_endpoint);
+// 	// ethernetserver.on(F("/favicon.ico"), webserver_favicon);
+// 	// ethernetserver.on(F(STATIC_PREFIX), webserver_static);
+// 	// ethernetserver.onNotFound(webserver_not_found);
+// 	debug_outln_info(F("Starting Webserver... "));
+// 	ethernetserver.begin();
+// }
+
+unsigned int localPort = 8888;			  // local port to listen for UDP packets
+const char timeServer[] = "ntp.obspm.fr"; // time.nist.gov NTP server
+const int NTP_PACKET_SIZE = 48;			  // NTP time stamp is in the first 48 bytes of the message
+byte packetBuffer[NTP_PACKET_SIZE];		  //buffer to hold incoming and outgoing packets
+EthernetUDP Udp;
+
+void sendNTPpacket(const char *address)
+{
+	// set all bytes in the buffer to 0
+	memset(packetBuffer, 0, NTP_PACKET_SIZE);
+	// Initialize values needed to form NTP request
+	// (see URL above for details on the packets)
+	packetBuffer[0] = 0b11100011; // LI, Version, Mode
+	packetBuffer[1] = 0;		  // Stratum, or type of clock
+	packetBuffer[2] = 6;		  // Polling Interval
+	packetBuffer[3] = 0xEC;		  // Peer Clock Precision
+	// 8 bytes of zero for Root Delay & Root Dispersion
+	packetBuffer[12] = 49;
+	packetBuffer[13] = 0x4E;
+	packetBuffer[14] = 49;
+	packetBuffer[15] = 52;
+
+	// all NTP fields have been given values, now
+	// you can send a packet requesting a timestamp:
+	Udp.beginPacket(address, 123); // NTP requests are to port 123
+	Udp.write(packetBuffer, NTP_PACKET_SIZE);
+	Udp.endPacket();
+}
+
+bool getNTPEthernet(struct tm_eth *time)
+{
+	Udp.begin(localPort);
+	sendNTPpacket(timeServer); // send an NTP packet to a time server
+	delay(1000);
+	if (Udp.parsePacket())
+	{
+		Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
+		unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
+		unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
+		unsigned long secsSince1900 = highWord << 16 | lowWord;
+		const unsigned long seventyYears = 2208988800UL;
+		unsigned long epoch = secsSince1900 - seventyYears;
+		unsigned long nb_days = epoch / 86400L;
+		unsigned nb_year = 1970 + (nb_days / 365);
+		unsigned leap_days = 0;
+		unsigned leap_year_ind = 0;
+
+		for (int i = 1972; i < nb_year; i += 4)
+		{
+			if (((i % 4 == 0) && (i % 100 != 0)) || (i % 400 == 0))
+			{
+				leap_days++;
+			}
+		}
+
+		nb_year = 1970 + ((nb_days - leap_days) / 365); // Calculating accurate current year by (days_since_epoch - extra leap days)
+		unsigned day_of_year = ((nb_days - leap_days) % 365) + 1;
+
+		static unsigned char month_days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+		static unsigned char week_days[7] = {4, 5, 6, 0, 1, 2, 3};
+
+		if (((nb_year % 4 == 0) && (nb_year % 100 != 0)) || (nb_year % 400 == 0))
+		{
+			month_days[1] = 29; //February = 29 days for leap years
+			leap_year_ind = 1;	//if current year is leap, set indicator to 1
+		}
+		else
+			month_days[1] = 28;
+
+		unsigned temp_days = 0;
+		unsigned nb_month;
+
+		for (nb_month = 0; nb_month <= 11; nb_month++) //calculating current Month
+		{
+			if (day_of_year <= temp_days)
+				break;
+			temp_days = temp_days + month_days[nb_month];
+		}
+
+		temp_days = temp_days - month_days[nb_month - 1]; //calculating current Date
+		unsigned nb_date = day_of_year - temp_days;
+
+		// Debug.print("The UTC time is ");       // UTC is the time at Greenwich Meridian (GMT)
+		// Debug.print((epoch  % 86400L) / 3600); // print the hour (86400 equals secs per day)
+		// Debug.print(':');
+		// if (((epoch % 3600) / 60) < 10) {
+		//   // In the first 10 minutes of each hour, we'll want a leading '0'
+		//   Debug.print('0');
+		// }
+		// Debug.print((epoch  % 3600) / 60); // print the minute (3600 equals secs per minute)
+		// Debug.print(':');
+		// if ((epoch % 60) < 10) {
+		//   // In the first 10 seconds of each minute, we'll want a leading '0'
+		//   Debug.print('0');
+		// }
+		// Debug.println(epoch % 60); // print the second
+
+		time->tm_year = nb_year;
+		time->tm_mon = nb_month;
+		time->tm_day = nb_date;
+		time->tm_hour = (epoch % 86400L) / 3600;
+		time->tm_min = (epoch % 3600) / 60;
+		time->tm_sec = epoch % 60;
+
+		return true;
+	}
+
+	return false;
+}
+
+sensordata getNebuleAirEthernet(char *id)
+{
+	String reponseAPI;
+	StaticJsonDocument<JSON_BUFFER_SIZE2> json;
+	char reponseJSON[JSON_BUFFER_SIZE2];
+
+	// HTTPClient http;
+	// http.setTimeout(20 * 1000);
+
+	// String urlAirCarto = "http://data.moduleair.fr/get_nebuleair.php?id=";
+	// String serverPath = urlAirCarto + String(id);
+
+	// debug_outln_info(F("Call: "), serverPath);
+	// http.begin(serverPath.c_str());
+
+	// int httpResponseCode = http.GET();
+
+	// if (httpResponseCode > 0)
+	// {
+	// 	reponseAPI = http.getString();
+	// 	if (reponseAPI == "null")
+	// 	{
+	// 		return {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
+	// 	}
+
+	// 	debug_outln_info(F("Response: "), reponseAPI);
+	// 	strcpy(reponseJSON, reponseAPI.c_str());
+
+	// 	DeserializationError error = deserializeJson(json, reponseJSON);
+
+	// 	if (strcmp(error.c_str(), "Ok") == 0)
+	// 	{
+	// 		return {(float)json["pm1"], (float)json["pm2_5"], (float)json["pm2_5"], (float)json["no2"], (float)json["cov"], (float)json["t"], (float)json["h"], (float)json["p"]};
+	// 	}
+	// 	else
+	// 	{
+	// 		Debug.print(F("deserializeJson() failed: "));
+	// 		Debug.println(error.c_str());
+	// 		return {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
+	// 	}
+	// 	http.end();
+	// }
+	// else
+	// {
+	// 	debug_outln_info(F("Failed connecting to AirCarto with error code:"), String(httpResponseCode));
+	// 	return {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
+	// 	http.end();
+	// }
+}
+
+float getDataAtmoSudEthernet(unsigned int type)
+{
+	// String sensor_type = "";
+	// struct tm timeinfo;
+
+	// //SetTimeZone(cfg::utc_offset, 0);  //VERIFIER SI CA MARCHE
+
+	// if (!getLocalTime(&timeinfo))
+	// {
+	// 	Debug.println("Failed to obtain time");
+	// }
+
+	// //timeinfo.tm_mday += 1; // J+1 Change the day in AtmoSud forecast API
+
+	// char date[21];
+	// strftime(date, 21, "%FT%TZ", &timeinfo);
+
+	// Debug.println(String(date));
+
+	// switch (type)
+	// {
+	// case 0:
+	// 	sensor_type = "icairh";
+	// 	break;
+	// case 1:
+	// 	sensor_type = "no2";
+	// 	break;
+	// case 2:
+	// 	sensor_type = "o3";
+	// 	break;
+	// case 3:
+	// 	sensor_type = "pm10";
+	// 	break;
+	// case 4:
+	// 	sensor_type = "pm2.5";
+	// 	break;
+	// case 5:
+	// 	sensor_type = "so2";
+	// 	break;
+	// }
+
+	// String reponseAPI;
+	// StaticJsonDocument<JSON_BUFFER_SIZE2> json;
+	// char reponseJSON[JSON_BUFFER_SIZE2];
+
+	// HTTPClient http;
+	// http.setTimeout(20 * 1000);
+
+	// //Call: https://api.atmosud.org/prevision/cartes/horaires/point?x=null&y=null&datetime_echeance=2023-05-09T&with_list=false&polluant=icairh
+
+	// String urlAtmo1 = "https://api.atmosud.org/prevision/cartes/horaires/point?x=";
+	// String urlAtmo2 = "&y=";
+	// String urlAtmo3 = "&datetime_echeance=";
+	// String urlAtmo4 = "&with_list=false&polluant=";
+
+	// String serverPath = urlAtmo1 + String(cfg::longitude) + urlAtmo2 + String(cfg::latitude) + urlAtmo3 + String(date) + urlAtmo4 + sensor_type;
+
+	// debug_outln_info(F("Call: "), serverPath);
+
+	// http.begin(serverPath.c_str());
+
+	// int httpResponseCode = http.GET();
+
+	// if (httpResponseCode > 0)
+	// {
+	// 	reponseAPI = http.getString();
+	// 	debug_outln_info(F("Response: "), reponseAPI);
+	// 	strcpy(reponseJSON, reponseAPI.c_str());
+
+	// 	DeserializationError error = deserializeJson(json, reponseJSON);
+
+	// 	serializeJsonPretty(json, Debug);
+
+	// 	if (strcmp(error.c_str(), "Ok") == 0)
+	// 	{
+	// 		debug_outln_info(F("Type: "), sensor_type);
+
+	// 		if (json["variables"][0]["variable"] == "icairh")
+	// 		{
+	// 			Debug.println((float)json["variables"][0]["horaires"][0]["indicateur"]);
+	// 			return (float)json["variables"][0]["horaires"][0]["indicateur"];
+	// 		}
+	// 		else
+	// 		{
+	// 			Debug.println((float)json["variables"][0]["horaires"][0]["concentration"]);
+	// 			return (float)json["variables"][0]["horaires"][0]["concentration"];
+	// 		}
+	// 	}
+	// 	else
+	// 	{
+	// 		Debug.print(F("deserializeJson() failed: "));
+	// 		Debug.println(error.c_str());
+	// 		return -1.0;
+	// 	}
+	// 	http.end();
+	// }
+	// else
+	// {
+	// 	debug_outln_info(F("Failed connecting to Atmo Sud API with error code:"), String(httpResponseCode));
+	// 	return -1.0;
+	// 	http.end();
+	// }
 }
 
 /*****************************************************************
@@ -3673,18 +4338,7 @@ void setup()
 
 	debug_outln_info(F("ModuleAirV3: " SOFTWARE_VERSION_STR "/"), String(CURRENT_LANG));
 
-	// ETH.begin();
-
-	// https://github.com/arhi/EthernetSPI2
-
-	//IL FAUDRA AJOUTER W5500
-
 	init_config();
-
-	// spiffs_matrix = cfg::has_matrix; //save the spiffs state on start
-
-	// Debug.println("spiffs_matrix: ");
-	// Debug.println(spiffs_matrix);
 
 	Wire.begin(I2C_PIN_SDA, I2C_PIN_SCL);
 	Wire1.begin(I2C_PIN_SDA_2, I2C_PIN_SCL_2); // For RTC
@@ -3695,28 +4349,186 @@ void setup()
 
 	debug_outln_info(F("\nChipId: "), esp_chipid);
 
-	if (cfg::has_wifi)
+	Wire.beginTransmission(I2C_SLAVE_ADDR);
+	Wire.write(cfg::has_matrix);
+	error = Wire.endTransmission(true);
+	cfg_matrix_sent = true;
+	Debug.println("Matrix config sent!");
+
+	delay(11000);  //ATTENTION AU TEMPS IL Y A DES DELAIS!!!!!!! DANS l'AUTRE ESP32
+
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
 	{
-		setupNetworkTime();
-		connectWifi();
-		setup_webserver();
-	}
-	else
-	{
-		wifiConfig();
+		further = Wire.read();
+		Debug.println("Step: 0");
+		// Debug.println(further);
 	}
 
+	delay(1000);
+
+	Wire.beginTransmission(I2C_SLAVE_ADDR);
+	Wire.write(cfg::has_wifi);
+	error = Wire.endTransmission(true);
+	cfg_wifi_sent = true;
+	Debug.println("Wifi config sent !");
+
+	delay(11000);
+
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+
+	delay(1000);
+
+	if(cfg::has_wifi){
+			setupNetworkTime();
+			connectWifi();
+			setup_webserver_wifi();
+
+
+	delay(6000);
+
+	if(connect_wifi){
+	Debug.println("WiFi connection was successful!");
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+	}
+
+	if(wifi_config){
+	Debug.println("WiFi connection was not successful!");
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+	}
+	}else{
+
+	wifi_config = true;
+
+	Wire.beginTransmission(I2C_SLAVE_ADDR);
+    Wire.write(wifi_byte, sizeof(wifi_byte)); //0x00,0x00 par défaut
+    error = Wire.endTransmission(true);
+
+	delay(6000);
+
+	Debug.println("Start AP for config");
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+
+	wifiConfig();
+	}
+
+	delay (1000);
+
+	Wire.beginTransmission(I2C_SLAVE_ADDR);
+	Wire.write(cfg::has_ethernet);
+	Debug.println("Ethernet config");
+	error = Wire.endTransmission(true);
+	cfg_ethernet_sent = true;
+
+	delay(11000);
+
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+
+
+	delay(1000);
+
+	if(cfg::has_ethernet){
+		connectEthernet();
+
+		delay(3000);
+
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+
+
+	}else{
+
+		test_ethernet = true;
+
+		Wire.beginTransmission(I2C_SLAVE_ADDR);
+		Wire.write(0x00);
+		Debug.println("Ethernet not connected");
+		error = Wire.endTransmission(true);
+		test_ethernet = true;
+
+		delay(3000);
+
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+	}
+
+	delay(1000);
+		
 	createLoggerConfigs();
 	logEnabledAPIs();
-	delay(50);
 
-	starttime = millis(); // store the start time
-	last_update_attempt = time_point_device_start_ms = starttime;
+	// starttime = millis(); // store the start time
+	// time_point_device_start_ms = starttime;
 
+	delay(1000);
+
+	Wire.beginTransmission(I2C_SLAVE_ADDR);
+	Wire.write(cfg::has_lora);
+	Debug.println("LoRaWAN starter");
+	error = Wire.endTransmission(true);
+	cfg_lora_sent = true;
+	
+	delay(11000);
+	
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
 
 	if (cfg::has_lora && lorachip)
 	{
-
 		ToByteArray();
 
 		Debug.printf("APPEUI:\n");
@@ -3748,7 +4560,8 @@ void setup()
 				Debug.printf("\n");
 			}
 		}
-		// LMIC init
+
+			// LMIC init
 		os_init();
 
 		// Reset the MAC state. Session and pending data transfers will be discarded.
@@ -3756,7 +4569,46 @@ void setup()
 
 		// Start job (sending automatically starts OTAA too)
 		do_send(&sendjob); // values are -1, -128 etc. they can be easily filtered
+
+		delay(6000);
+
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
 	}
+
+	first_lora_payload = false;
+
+	}else{
+
+				test_lora = true;
+				Wire.beginTransmission(I2C_SLAVE_ADDR);
+				Wire.write(lora_byte, sizeof(lora_byte));
+				Debug.println("No LoRaWAN connection");
+				error = Wire.endTransmission(true);
+				test_lora = true;
+
+				delay(6000);
+
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
+
+	first_lora_payload = false;
+	}
+
+
+	delay(1000);
+
 
 	if (cfg::display_forecast)
 	{
@@ -3784,15 +4636,14 @@ void setup()
 	Debug.println(booltobyte(configlorawan));
 	datalora[0] = booltobyte(configlorawan);
 
-	Debug.printf("End of void setup()\n");
-	time_end_setup = millis();
-
-
-	if (! rtc.begin()) { //ATTENTION FORCER Wire1 dans la lib!!!
-	Debug.println("Couldn't find RTC");
-	rtc_ok = false;
-	}else{
-	rtc_ok = true;
+	if (!rtc.begin())
+	{ //ATTENTION FORCER Wire1 dans la lib!!!
+		Debug.println("Couldn't find RTC");
+		rtc_ok = false;
+	}
+	else
+	{
+		rtc_ok = true;
 	}
 
 	config_byte[0] = cfg::has_sdcard;
@@ -3811,94 +4662,102 @@ void setup()
 
 	unsigned long ntp_started = millis();
 
-	while(!getLocalTime(&timeinfo) && ((millis()- ntp_started) < 30000))
+	while (cfg::has_wifi && (!getLocalTime(&timeinfo) && ((millis() - ntp_started) < 30000)))
 	{
-		Debug.println("Failed to obtain time");
+		Debug.println("Failed to obtain time from Wifi");
 	}
-	
-	if(getLocalTime(&timeinfo))
-	{
-	config_byte[13] = (byte)(timeinfo.tm_year-100);
-	config_byte[14] = (byte)timeinfo.tm_mon + 1;
-	config_byte[15] = (byte)timeinfo.tm_mday;
-	config_byte[16] = (byte)timeinfo.tm_hour;
-	config_byte[17] = (byte)timeinfo.tm_min;
-	config_byte[18] = (byte)timeinfo.tm_sec;
 
-	}else{
-	
-	config_byte[13] = 0;
-	config_byte[14] = 0;
-	config_byte[15] = 0;
-	config_byte[16] = 0;
-	config_byte[17] = 0;
-	config_byte[18] = 0;
+	if (cfg::has_wifi && getLocalTime(&timeinfo))
+	{
+		config_byte[13] = (byte)(timeinfo.tm_year - 100);
+		config_byte[14] = (byte)timeinfo.tm_mon + 1;
+		config_byte[15] = (byte)timeinfo.tm_mday;
+		config_byte[16] = (byte)timeinfo.tm_hour;
+		config_byte[17] = (byte)timeinfo.tm_min;
+		config_byte[18] = (byte)timeinfo.tm_sec;
+	}
+	else if (cfg::has_ethernet && !ethernet_connection_lost && getNTPEthernet(&timeeth))
+	{
+		config_byte[13] = (byte)(timeeth.tm_year - 2000);
+		config_byte[14] = (byte)timeeth.tm_mon;
+		config_byte[15] = (byte)timeeth.tm_day;
+		config_byte[16] = (byte)timeeth.tm_hour;
+		config_byte[17] = (byte)timeeth.tm_min;
+		config_byte[18] = (byte)timeeth.tm_sec;
+	}
+	else
+	{
+		config_byte[13] = 0;
+		config_byte[14] = 0;
+		config_byte[15] = 0;
+		config_byte[16] = 0;
+		config_byte[17] = 0;
+		config_byte[18] = 0;
 	}
 
 	config_byte[19] = cfg::utc_offset;
 
-	if(rtc_ok){
-	now = rtc.now();
+	if (rtc_ok)
+	{
+		now = rtc.now();
 
-	config_byte[20] = (byte)(now.year()-2000);
-	config_byte[21] = (byte)now.month();
-	config_byte[22] = (byte)now.day();
-	config_byte[23] = (byte)now.hour();
-	config_byte[24] = (byte)now.minute();
-	config_byte[25] = (byte)now.second();
+		config_byte[20] = (byte)(now.year() - 2000);
+		config_byte[21] = (byte)now.month();
+		config_byte[22] = (byte)now.day();
+		config_byte[23] = (byte)now.hour();
+		config_byte[24] = (byte)now.minute();
+		config_byte[25] = (byte)now.second();
+	}
+	else
+	{
 
-	}else{
-
-	config_byte[20] = 0;
-	config_byte[21] = 0;
-	config_byte[22] = 0;
-	config_byte[23] = 0;
-	config_byte[24] = 0;
-	config_byte[25] = 0;
-
+		config_byte[20] = 0;
+		config_byte[21] = 0;
+		config_byte[22] = 0;
+		config_byte[23] = 0;
+		config_byte[24] = 0;
+		config_byte[25] = 0;
 	}
 
-config_byte[26] = cfg::show_nebuleair;
+	config_byte[26] = cfg::show_nebuleair;
 
-u_uint16.temp_uint16 = (uint16_t)(cfg::height_above_sealevel);
+	u_uint16.temp_uint16 = (uint16_t)(cfg::height_above_sealevel);
 
-config_byte[27] = u_uint16.temp_byte[1];
-config_byte[28] = u_uint16.temp_byte[0];
+	config_byte[27] = u_uint16.temp_byte[1];
+	config_byte[28] = u_uint16.temp_byte[0];
 
-delay(5000); //wait
+	delay(1000); 
 
-Wire.beginTransmission(I2C_SLAVE_ADDR);
+	Wire.beginTransmission(I2C_SLAVE_ADDR);
+	Wire.write(config_byte, sizeof(config_byte));
+	Debug.println("Config sent!");
+	error = Wire.endTransmission(true);
+	whole_config_sent = true;
 
-  Wire.write(config_byte, sizeof(config_byte));
-  Debug.println("Config sent!");
+	delay(2000); 
 
-error = Wire.endTransmission(true);
+	error = Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+	Debug.printf("requestFrom: %u byte\n", error);
+	if (error)
+	{
+		further = Wire.read();
+		Debug.print("Step: ");
+		Debug.println(further);
+	}
 
-delay(15000); //the other esp32 must have created values before the fisrt request 
+	delay(40000); //the other esp32 must have created values before the fisrt request
 
+	starttime = millis(); // store the start time
+	time_point_device_start_ms = starttime;
+
+	Debug.printf("End of void setup()\n");
+	time_end_setup = millis();
 }
 
 void loop()
 {
-
-
-
-//now = rtc.now();
-// Debug.print(now.year(), DEC);
-// Debug.print("-");
-// Debug.print(now.month(), DEC);
-// Debug.print("-");
-// Debug.print(now.day(), DEC);
-// Debug.print("-");
-// Debug.print(daysOfTheWeek[now.dayOfTheWeek()]);
-// Debug.print("/");
-// Debug.print(now.hour(), DEC);
-// Debug.print(":");
-// Debug.print(now.minute(), DEC);
-// Debug.print(":");
-// Debug.println(now.second(), DEC);
-
-	String result_NPM, result_MHZ16, result_MHZ19, result_CCS811, result_Cairsens;;
+	String result_NPM, result_MHZ16, result_MHZ19, result_CCS811, result_Cairsens;
+	;
 
 	unsigned sum_send_time = 0;
 
@@ -3928,245 +4787,291 @@ void loop()
 
 		if (cfg::has_wifi && !wifi_connection_lost)
 		{
-			last_signal_strength = WiFi.RSSI();
+			last_signal_strength_wifi = WiFi.RSSI();
 		}
 
+		if (cfg::has_lora && !lora_connection_lost)
+		{
+			last_signal_strength_lorawan = LMIC.rssi;
+		}
 
 		RESERVE_STRING(data, LARGE_STR);
 		data = FPSTR(data_first_part);
 		RESERVE_STRING(result, MED_STR);
-		
+
 		error = Wire.requestFrom(I2C_SLAVE_ADDR, LEN_REQUEST);
-		Debug.printf("requestFrom: %u\n", error);
-		if(error){
-		Wire.readBytes(request_byte, error);
-		}
-
-u_float.temp_byte[0] = request_byte[0];
-u_float.temp_byte[1] = request_byte[1];
-u_float.temp_byte[2] = request_byte[2];
-u_float.temp_byte[3] = request_byte[3];
-
-last_value_NPM_P0 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[4];
-u_float.temp_byte[1] = request_byte[5];
-u_float.temp_byte[2] = request_byte[6];
-u_float.temp_byte[3] = request_byte[7];
-
-last_value_NPM_P1 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[8];
-u_float.temp_byte[1] = request_byte[9];
-u_float.temp_byte[2] = request_byte[10];
-u_float.temp_byte[3] = request_byte[11];
-
-last_value_NPM_P2 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[12];
-u_float.temp_byte[1] = request_byte[13];
-u_float.temp_byte[2] = request_byte[14];
-u_float.temp_byte[3] = request_byte[15];
-
-last_value_NPM_N1 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[16];
-u_float.temp_byte[1] = request_byte[17];
-u_float.temp_byte[2] = request_byte[18];
-u_float.temp_byte[3] = request_byte[19];
-
-last_value_NPM_N10 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[20];
-u_float.temp_byte[1] = request_byte[21];
-u_float.temp_byte[2] = request_byte[22];
-u_float.temp_byte[3] = request_byte[23];
-
-last_value_NPM_N25 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[24];
-u_float.temp_byte[1] = request_byte[25];
-u_float.temp_byte[2] = request_byte[26];
-u_float.temp_byte[3] = request_byte[27];
-
-last_value_MHZ16 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[28];
-u_float.temp_byte[1] = request_byte[29];
-u_float.temp_byte[2] = request_byte[30];
-u_float.temp_byte[3] = request_byte[31];
-
-last_value_MHZ19 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[32];
-u_float.temp_byte[1] = request_byte[33];
-u_float.temp_byte[2] = request_byte[34];
-u_float.temp_byte[3] = request_byte[35];
-
-last_value_CCS811 = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[36];
-u_float.temp_byte[1] = request_byte[37];
-u_float.temp_byte[2] = request_byte[38];
-u_float.temp_byte[3] = request_byte[39];
-
-last_value_BMX280_T = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[40];
-u_float.temp_byte[1] = request_byte[41];
-u_float.temp_byte[2] = request_byte[42];
-u_float.temp_byte[3] = request_byte[43];
-
-last_value_BME280_H = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[44];
-u_float.temp_byte[1] = request_byte[45];
-u_float.temp_byte[2] = request_byte[46];
-u_float.temp_byte[3] = request_byte[47];
-
-last_value_BMX280_P = u_float.temp_float;
-
-u_float.temp_byte[0] = request_byte[48];
-u_float.temp_byte[1] = request_byte[49];
-u_float.temp_byte[2] = request_byte[50];
-u_float.temp_byte[3] = request_byte[51];
-
-last_value_no2 = u_float.temp_float;
-
-add_Value2Json(result_NPM, F("NPM_P0"), F("PM1: "), last_value_NPM_P0);
-add_Value2Json(result_NPM, F("NPM_P1"), F("PM10:  "), last_value_NPM_P1);
-add_Value2Json(result_NPM, F("NPM_P2"), F("PM2.5: "), last_value_NPM_P2);
-add_Value2Json(result_NPM, F("NPM_N1"), F("NC1.0: "), last_value_NPM_N1);
-add_Value2Json(result_NPM, F("NPM_N10"), F("NC10:  "), last_value_NPM_N10);
-add_Value2Json(result_NPM, F("NPM_N25"), F("NC2.5: "), last_value_NPM_N25);
-add_Value2Json(result_MHZ16, F("MHZ16_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ16);
-add_Value2Json(result_MHZ19, F("MHZ19_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ19);
-add_Value2Json(result_CCS811, F("CCS811_VOC"), FPSTR(DBG_TXT_VOCPPB), last_value_CCS811);
-add_Value2Json(result, F("BME280_temperature"), FPSTR(DBG_TXT_TEMPERATURE), last_value_BMX280_T);
-add_Value2Json(result, F("BME280_pressure"), FPSTR(DBG_TXT_PRESSURE), last_value_BMX280_P);
-add_Value2Json(result, F("BME280_humidity"), FPSTR(DBG_TXT_HUMIDITY), last_value_BME280_H);
-add_Value2Json(result_Cairsens, F("Cairsens_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
-
-if (cfg::npm_read)
-{
-	data += result_NPM;
-	if (cfg::has_wifi && !wifi_connection_lost)
-	{
-		sum_send_time += sendSensorCommunity(result_NPM, NPM_API_PIN, FPSTR(SENSORS_NPM), "NPM_");
-	}
-}
-
-if (cfg::bme280_read)
-{
-	data += result;
-		if (cfg::has_wifi && !wifi_connection_lost)
+		Debug.printf("requestFrom: %u byte\n", error);
+		delay(5);
+		if (error)
 		{
-			sum_send_time += sendSensorCommunity(result, BME280_API_PIN, FPSTR(SENSORS_BME280), "BME280_");
+			Wire.readBytes(request_byte, error);
 		}
-	result = emptyString;
-}
 
-//These values are not sent because not configured in the SC API:
+		u_float.temp_byte[0] = request_byte[0];
+		u_float.temp_byte[1] = request_byte[1];
+		u_float.temp_byte[2] = request_byte[2];
+		u_float.temp_byte[3] = request_byte[3];
 
-if (cfg::mhz16_read)
-{
-	data += result_MHZ16;
-}
+		last_value_NPM_P0 = u_float.temp_float;
 
-if (cfg::mhz19_read)
-{
-	data += result_MHZ19;
-}
+		u_float.temp_byte[0] = request_byte[4];
+		u_float.temp_byte[1] = request_byte[5];
+		u_float.temp_byte[2] = request_byte[6];
+		u_float.temp_byte[3] = request_byte[7];
 
-if (cfg::ccs811_read)
-{
-	data += result_CCS811;
-}
+		last_value_NPM_P1 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[8];
+		u_float.temp_byte[1] = request_byte[9];
+		u_float.temp_byte[2] = request_byte[10];
+		u_float.temp_byte[3] = request_byte[11];
+
+		last_value_NPM_P2 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[12];
+		u_float.temp_byte[1] = request_byte[13];
+		u_float.temp_byte[2] = request_byte[14];
+		u_float.temp_byte[3] = request_byte[15];
+
+		last_value_NPM_N1 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[16];
+		u_float.temp_byte[1] = request_byte[17];
+		u_float.temp_byte[2] = request_byte[18];
+		u_float.temp_byte[3] = request_byte[19];
+
+		last_value_NPM_N10 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[20];
+		u_float.temp_byte[1] = request_byte[21];
+		u_float.temp_byte[2] = request_byte[22];
+		u_float.temp_byte[3] = request_byte[23];
+
+		last_value_NPM_N25 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[24];
+		u_float.temp_byte[1] = request_byte[25];
+		u_float.temp_byte[2] = request_byte[26];
+		u_float.temp_byte[3] = request_byte[27];
+
+		last_value_MHZ16 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[28];
+		u_float.temp_byte[1] = request_byte[29];
+		u_float.temp_byte[2] = request_byte[30];
+		u_float.temp_byte[3] = request_byte[31];
+
+		last_value_MHZ19 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[32];
+		u_float.temp_byte[1] = request_byte[33];
+		u_float.temp_byte[2] = request_byte[34];
+		u_float.temp_byte[3] = request_byte[35];
+
+		last_value_CCS811 = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[36];
+		u_float.temp_byte[1] = request_byte[37];
+		u_float.temp_byte[2] = request_byte[38];
+		u_float.temp_byte[3] = request_byte[39];
+
+		last_value_BMX280_T = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[40];
+		u_float.temp_byte[1] = request_byte[41];
+		u_float.temp_byte[2] = request_byte[42];
+		u_float.temp_byte[3] = request_byte[43];
+
+		last_value_BME280_H = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[44];
+		u_float.temp_byte[1] = request_byte[45];
+		u_float.temp_byte[2] = request_byte[46];
+		u_float.temp_byte[3] = request_byte[47];
+
+		last_value_BMX280_P = u_float.temp_float;
+
+		u_float.temp_byte[0] = request_byte[48];
+		u_float.temp_byte[1] = request_byte[49];
+		u_float.temp_byte[2] = request_byte[50];
+		u_float.temp_byte[3] = request_byte[51];
+
+		last_value_no2 = u_float.temp_float;
+
+		Debug.println("TEST TEST TEST");
+		Debug.println(last_value_NPM_P0);
+		Debug.println(String(last_value_NPM_P0));
+
+		add_Value2Json(result_NPM, F("NPM_P0"), F("PM1: "), last_value_NPM_P0);
+		add_Value2Json(result_NPM, F("NPM_P1"), F("PM10:  "), last_value_NPM_P1);
+		add_Value2Json(result_NPM, F("NPM_P2"), F("PM2.5: "), last_value_NPM_P2);
+		add_Value2Json(result_NPM, F("NPM_N1"), F("NC1.0: "), last_value_NPM_N1);
+		add_Value2Json(result_NPM, F("NPM_N10"), F("NC10:  "), last_value_NPM_N10);
+		add_Value2Json(result_NPM, F("NPM_N25"), F("NC2.5: "), last_value_NPM_N25);
+		add_Value2Json(result_MHZ16, F("MHZ16_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ16);
+		add_Value2Json(result_MHZ19, F("MHZ19_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ19);
+		add_Value2Json(result_CCS811, F("CCS811_VOC"), FPSTR(DBG_TXT_VOCPPB), last_value_CCS811);
+		add_Value2Json(result, F("BME280_temperature"), FPSTR(DBG_TXT_TEMPERATURE), last_value_BMX280_T);
+		add_Value2Json(result, F("BME280_pressure"), FPSTR(DBG_TXT_PRESSURE), last_value_BMX280_P);
+		add_Value2Json(result, F("BME280_humidity"), FPSTR(DBG_TXT_HUMIDITY), last_value_BME280_H);
+		add_Value2Json(result_Cairsens, F("Cairsens_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
+
+		if (cfg::npm_read)
+		{
+			data += result_NPM;
+			if (cfg::has_wifi && !wifi_connection_lost)
+			{
+				sum_send_time += sendSensorCommunity(result_NPM, NPM_API_PIN, FPSTR(SENSORS_NPM), "NPM_");
+			}
+
+			if (cfg::has_ethernet && !ethernet_connection_lost)
+			{
+			}
+		}
+
+		if (cfg::bme280_read)
+		{
+			data += result;
+			if (cfg::has_wifi && !wifi_connection_lost)
+			{
+				sum_send_time += sendSensorCommunity(result, BME280_API_PIN, FPSTR(SENSORS_BME280), "BME280_");
+			}
+			if (cfg::has_ethernet && !ethernet_connection_lost)
+			{
+			}
+			result = emptyString;
+		}
+
+		//These values are not sent because not configured in the SC API:
+
+		if (cfg::mhz16_read)
+		{
+			data += result_MHZ16;
+		}
+
+		if (cfg::mhz19_read)
+		{
+			data += result_MHZ19;
+		}
+
+		if (cfg::ccs811_read)
+		{
+			data += result_CCS811;
+		}
 
 		add_Value2Json(data, F("samples"), String(sample_count));
 		add_Value2Json(data, F("min_micro"), String(min_micro));
 		add_Value2Json(data, F("max_micro"), String(max_micro));
 		add_Value2Json(data, F("interval"), String(cfg::sending_intervall_ms));
-		add_Value2Json(data, F("signal"), String(last_signal_strength));
+
+		if (cfg::has_wifi)
+		{
+			add_Value2Json(data, F("signal_wifi"), String(last_signal_strength_wifi));
+		}
+
+		if (cfg::has_lora)
+		{
+			add_Value2Json(data, F("signal_lora"), String(last_signal_strength_lorawan));
+		}
+
 		add_Value2Json(data, F("latitude"), String(cfg::latitude));
 		add_Value2Json(data, F("longitude"), String(cfg::longitude));
 		add_Value2Json(data, F("rgpd"), String(cfg::rgpd));
 		add_Value2Json(data, F("utc_offset"), String(cfg::utc_offset));
 
 		String timestringntp;
-	if (!getLocalTime(&timeinfo))
-	{
-		Debug.println("Failed to obtain time");
-		timestringntp = "2000-00-00T00:00:00Z";
-	}else{
+		if (!getLocalTime(&timeinfo))
+		{
+			Debug.println("Failed to obtain time");
+			timestringntp = "2000-00-00T00:00:00Z";
+		}
+		else
+		{
 			timestringntp += "20";
-			timestringntp += String(timeinfo.tm_year-100);
+			timestringntp += String(timeinfo.tm_year - 100);
 			timestringntp += "-";
-			if (timeinfo.tm_mon + 1 < 10){timestringntp += "0";}
+			if (timeinfo.tm_mon + 1 < 10)
+			{
+				timestringntp += "0";
+			}
 			timestringntp += String(timeinfo.tm_mon + 1);
 			timestringntp += "-";
-			if (timeinfo.tm_mday < 10){timestringntp += "0";}
+			if (timeinfo.tm_mday < 10)
+			{
+				timestringntp += "0";
+			}
 			timestringntp += String(timeinfo.tm_mday);
 			timestringntp += "T";
-			if (timeinfo.tm_hour < 10){timestringntp += "0";}
+			if (timeinfo.tm_hour < 10)
+			{
+				timestringntp += "0";
+			}
 			timestringntp += String(timeinfo.tm_hour);
 			timestringntp += ":";
-			if (timeinfo.tm_min < 10){timestringntp += "0";}
+			if (timeinfo.tm_min < 10)
+			{
+				timestringntp += "0";
+			}
 			timestringntp += String(timeinfo.tm_min);
 			timestringntp += ":";
-			if (timeinfo.tm_sec < 10){timestringntp += "0";}
+			if (timeinfo.tm_sec < 10)
+			{
+				timestringntp += "0";
+			}
 			timestringntp += String(timeinfo.tm_sec);
 			timestringntp += "Z";
-	}
-	add_Value2Json(data, F("time_UTC"), timestringntp);
+		}
+		add_Value2Json(data, F("time_UTC"), timestringntp);
 
 		String current_time;
-	if(rtc_ok){
-	now = rtc.now();
-	current_time += String(now.year(), DEC);
-	current_time += "-";
+		if (rtc_ok)
+		{
+			now = rtc.now();
+			current_time += String(now.year(), DEC);
+			current_time += "-";
 
-	if (now.month() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.month(), DEC);
-	current_time += "-";
+			if (now.month() < 10)
+			{
+				current_time += "0";
+			}
+			current_time += String(now.month(), DEC);
+			current_time += "-";
 
-	if (now.day() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.day(),DEC);
+			if (now.day() < 10)
+			{
+				current_time += "0";
+			}
+			current_time += String(now.day(), DEC);
 
-	current_time += "T";
-	if (now.hour() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.hour(), DEC);
-	current_time += ":";
+			current_time += "T";
+			if (now.hour() < 10)
+			{
+				current_time += "0";
+			}
+			current_time += String(now.hour(), DEC);
+			current_time += ":";
 
-	if (now.minute() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.minute(), DEC);
-	current_time += ":";
+			if (now.minute() < 10)
+			{
+				current_time += "0";
+			}
+			current_time += String(now.minute(), DEC);
+			current_time += ":";
 
-	if (now.second() < 10)
-	{
-		current_time += "0";
-	}
-	current_time += String(now.second());
-	current_time += "Z";
-	}else{
+			if (now.second() < 10)
+			{
+				current_time += "0";
+			}
+			current_time += String(now.second());
+			current_time += "Z";
+		}
+		else
+		{
 
-	current_time = "2000-00-00T00:00:00Z";
-	}
+			current_time = "2000-00-00T00:00:00Z";
+		}
 
-	add_Value2Json(data, F("time_RTC"), current_time);
-
+		add_Value2Json(data, F("time_RTC"), current_time);
 
 		if ((unsigned)(data.lastIndexOf(',') + 1) == data.length())
 		{
@@ -4231,10 +5136,14 @@ if (cfg::ccs811_read)
 			debug_outln_info(emptyString);
 		}
 
+		if (cfg::has_ethernet && !ethernet_connection_lost)
+		{
+		}
+
 		// only do a restart after finishing sending (Wifi). Befor Lora to avoid conflicts with the LMIC
 		if (msSince(time_point_device_start_ms) > DURATION_BEFORE_FORCED_RESTART_MS)
 		{
-			sensor_restart();  //FORCE RESTART OF THE OTHER
+			sensor_restart(); //FORCE RESTART OF THE OTHER
 		}
 
 		// Resetting for next sampling
@@ -4294,6 +5203,55 @@ if (cfg::ccs811_read)
 			}
 		}
 
+		if (cfg::display_forecast && cfg::has_ethernet && !ethernet_connection_lost) //the reception through LoRaWAN downlink is automatically done
+		{
+			switch (forecast_selector)
+			{
+			case 0:
+				atmoSud.multi = getDataAtmoSudEthernet(forecast_selector);
+				break;
+			case 1:
+				atmoSud.no2 = getDataAtmoSudEthernet(forecast_selector);
+				break;
+			case 2:
+				atmoSud.o3 = getDataAtmoSudEthernet(forecast_selector);
+				break;
+			case 3:
+				atmoSud.pm10 = getDataAtmoSudEthernet(forecast_selector);
+				break;
+			case 4:
+				atmoSud.pm2_5 = getDataAtmoSudEthernet(forecast_selector);
+				break;
+			case 5:
+				atmoSud.so2 = getDataAtmoSudEthernet(forecast_selector);
+				break;
+			}
+		}
+		else
+		{
+			switch (forecast_selector)
+			{
+			case 0:
+				atmoSud.multi = -1.0;
+				break;
+			case 1:
+				atmoSud.no2 = -1.0;
+				break;
+			case 2:
+				atmoSud.o3 = -1.0;
+				break;
+			case 3:
+				atmoSud.pm10 = -1.0;
+				break;
+			case 4:
+				atmoSud.pm2_5 = -1.0;
+				break;
+			case 5:
+				atmoSud.so2 = -1.0;
+				break;
+			}
+		}
+
 		if (cfg::show_nebuleair && cfg::has_wifi && !wifi_connection_lost) //the reception through LoRaWAN downlink is automatically done
 		{
 			nebuleair = getNebuleAir(cfg::id_nebuleair);
@@ -4303,6 +5261,14 @@ if (cfg::ccs811_read)
 			nebuleair = {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
 		}
 
+		if (cfg::show_nebuleair && cfg::has_ethernet && !ethernet_connection_lost) //the reception through LoRaWAN downlink is automatically done
+		{
+			nebuleair = getNebuleAirEthernet(cfg::id_nebuleair);
+		}
+		else
+		{
+			nebuleair = {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
+		}
 
 		u_float.temp_float = atmoSud.multi;
 
@@ -4324,7 +5290,7 @@ if (cfg::ccs811_read)
 		data_byte[9] = u_float.temp_byte[1];
 		data_byte[10] = u_float.temp_byte[2];
 		data_byte[11] = u_float.temp_byte[3];
-		
+
 		u_float.temp_float = atmoSud.pm10;
 
 		data_byte[12] = u_float.temp_byte[0];
@@ -4333,7 +5299,7 @@ if (cfg::ccs811_read)
 		data_byte[15] = u_float.temp_byte[3];
 
 		u_float.temp_float = atmoSud.pm2_5;
-		
+
 		data_byte[16] = u_float.temp_byte[0];
 		data_byte[17] = u_float.temp_byte[1];
 		data_byte[18] = u_float.temp_byte[2];
@@ -4341,141 +5307,149 @@ if (cfg::ccs811_read)
 
 		u_float.temp_float = atmoSud.so2;
 
-		
 		data_byte[20] = u_float.temp_byte[0];
 		data_byte[21] = u_float.temp_byte[1];
 		data_byte[22] = u_float.temp_byte[2];
 		data_byte[23] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.pm1;
+		u_float.temp_float = nebuleair.pm1;
 
 		data_byte[24] = u_float.temp_byte[0];
 		data_byte[25] = u_float.temp_byte[1];
 		data_byte[26] = u_float.temp_byte[2];
 		data_byte[27] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.pm2_5;
+		u_float.temp_float = nebuleair.pm2_5;
 
 		data_byte[28] = u_float.temp_byte[0];
 		data_byte[29] = u_float.temp_byte[1];
 		data_byte[30] = u_float.temp_byte[2];
 		data_byte[31] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.pm10;
+		u_float.temp_float = nebuleair.pm10;
 
 		data_byte[32] = u_float.temp_byte[0];
 		data_byte[33] = u_float.temp_byte[1];
 		data_byte[34] = u_float.temp_byte[2];
 		data_byte[35] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.no2;
+		u_float.temp_float = nebuleair.no2;
 
 		data_byte[36] = u_float.temp_byte[0];
 		data_byte[37] = u_float.temp_byte[1];
 		data_byte[38] = u_float.temp_byte[2];
 		data_byte[39] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.cov;
+		u_float.temp_float = nebuleair.cov;
 
 		data_byte[40] = u_float.temp_byte[0];
 		data_byte[41] = u_float.temp_byte[1];
 		data_byte[42] = u_float.temp_byte[2];
 		data_byte[43] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.t;
+		u_float.temp_float = nebuleair.t;
 
 		data_byte[44] = u_float.temp_byte[0];
 		data_byte[45] = u_float.temp_byte[1];
 		data_byte[46] = u_float.temp_byte[2];
 		data_byte[47] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.h;
+		u_float.temp_float = nebuleair.h;
 
 		data_byte[48] = u_float.temp_byte[0];
 		data_byte[49] = u_float.temp_byte[1];
 		data_byte[50] = u_float.temp_byte[2];
 		data_byte[51] = u_float.temp_byte[3];
 
-u_float.temp_float = nebuleair.p;
+		u_float.temp_float = nebuleair.p;
 
 		data_byte[52] = u_float.temp_byte[0];
 		data_byte[53] = u_float.temp_byte[1];
 		data_byte[54] = u_float.temp_byte[2];
 		data_byte[55] = u_float.temp_byte[3];
 
-	if (!getLocalTime(&timeinfo))
-	{
-		u_uint16.temp_uint16 = 2000;
+		if (!getLocalTime(&timeinfo))
+		{
+			u_uint16.temp_uint16 = 2000;
 
-		data_byte[56] = u_uint16.temp_byte[1];
-		data_byte[57] = u_uint16.temp_byte[0];
+			data_byte[56] = u_uint16.temp_byte[1];
+			data_byte[57] = u_uint16.temp_byte[0];
 
-		u_uint16.temp_uint16 = 0;
+			u_uint16.temp_uint16 = 0;
 
-		data_byte[58] = u_uint16.temp_byte[1];
-		data_byte[59] = u_uint16.temp_byte[0];
+			data_byte[58] = u_uint16.temp_byte[1];
+			data_byte[59] = u_uint16.temp_byte[0];
 
-		u_uint16.temp_uint16 = 0;
+			u_uint16.temp_uint16 = 0;
 
-		data_byte[60] = u_uint16.temp_byte[1];
-		data_byte[61] = u_uint16.temp_byte[0];
+			data_byte[60] = u_uint16.temp_byte[1];
+			data_byte[61] = u_uint16.temp_byte[0];
 
-		u_uint16.temp_uint16 = 0;
+			u_uint16.temp_uint16 = 0;
 
-		data_byte[62] = u_uint16.temp_byte[1];
-		data_byte[63] = u_uint16.temp_byte[0];
+			data_byte[62] = u_uint16.temp_byte[1];
+			data_byte[63] = u_uint16.temp_byte[0];
 
-		u_uint16.temp_uint16 = 0;
+			u_uint16.temp_uint16 = 0;
 
-		data_byte[64] = u_uint16.temp_byte[1];
-		data_byte[65] = u_uint16.temp_byte[0];
+			data_byte[64] = u_uint16.temp_byte[1];
+			data_byte[65] = u_uint16.temp_byte[0];
 
-		u_uint16.temp_uint16 = 0;
+			u_uint16.temp_uint16 = 0;
 
-		data_byte[66] = u_uint16.temp_byte[1];
-		data_byte[67] = u_uint16.temp_byte[0];
+			data_byte[66] = u_uint16.temp_byte[1];
+			data_byte[67] = u_uint16.temp_byte[0];
+		}
+		else
+		{
 
-	}else{
+			u_uint16.temp_uint16 = (uint16_t)(2000 + timeinfo.tm_year - 100);
 
-		u_uint16.temp_uint16 = (uint16_t)(2000 + timeinfo.tm_year-100);
+			data_byte[56] = u_uint16.temp_byte[1];
+			data_byte[57] = u_uint16.temp_byte[0];
 
-		data_byte[56] = u_uint16.temp_byte[1];
-		data_byte[57] = u_uint16.temp_byte[0];
+			u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_mon + 1);
 
-		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_mon + 1);
+			data_byte[58] = u_uint16.temp_byte[1];
+			data_byte[59] = u_uint16.temp_byte[0];
 
-		data_byte[58] = u_uint16.temp_byte[1];
-		data_byte[59] = u_uint16.temp_byte[0];
+			u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_mday);
 
-		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_mday);
+			data_byte[60] = u_uint16.temp_byte[1];
+			data_byte[61] = u_uint16.temp_byte[0];
 
-		data_byte[60] = u_uint16.temp_byte[1];
-		data_byte[61] = u_uint16.temp_byte[0];
+			u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_hour + cfg::utc_offset); //ATTENTION au CAST
 
-		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_hour + cfg::utc_offset);  //ATTENTION au CAST
+			data_byte[62] = u_uint16.temp_byte[1];
+			data_byte[63] = u_uint16.temp_byte[0];
 
-		data_byte[62] = u_uint16.temp_byte[1];
-		data_byte[63] = u_uint16.temp_byte[0];
+			u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_min);
 
-		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_min);
+			data_byte[64] = u_uint16.temp_byte[1];
+			data_byte[65] = u_uint16.temp_byte[0];
 
-		data_byte[64] = u_uint16.temp_byte[1];
-		data_byte[65] = u_uint16.temp_byte[0];
+			u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_sec);
 
-		u_uint16.temp_uint16 = (uint16_t)(timeinfo.tm_sec);
+			data_byte[66] = u_uint16.temp_byte[1];
+			data_byte[67] = u_uint16.temp_byte[0];
+		}
 
-		data_byte[66] = u_uint16.temp_byte[1];
-		data_byte[67] = u_uint16.temp_byte[0];
-	}
+		Debug.printf("HEX values:\n");
+		for (int i = 0; i < LEN_DATA_BYTE - 1; i++)
+		{
+			Debug.printf(" %02x", datalora[i]);
+			if (i == LEN_DATA_BYTE - 2)
+			{
+				Debug.printf("\n");
+			}
+		}
 
-Wire.beginTransmission(I2C_SLAVE_ADDR);
+		Wire.beginTransmission(I2C_SLAVE_ADDR);
+		Wire.write(data_byte, sizeof(data_byte));
+		Debug.println("Data matrix sent!");
+		error = Wire.endTransmission(true);
 
-  Wire.write(data_byte, sizeof(data_byte));
-  Debug.println("Data matrix sent!");
-
-error = Wire.endTransmission(true);
-
-if (cfg::has_lora && lorachip)
+		if (cfg::has_lora && lorachip)
 		{
 			prepareTxFrame();
 			// do_send(&sendjob);
@@ -4503,7 +5477,7 @@ if (cfg::has_lora && lorachip)
 
 	if (sample_count % 500 == 0)
 	{
-		//		Serial.println(ESP.getFreeHeap(),DEC);
+		//		Debug.println(ESP.getFreeHeap(),DEC);
 	}
 
 	if (cfg::has_lora && lorachip)
@@ -4512,4 +5486,3 @@ if (cfg::has_lora && lorachip)
 		//place in the send now ? Let here to let Lora lib control itself
 	}
 }
-

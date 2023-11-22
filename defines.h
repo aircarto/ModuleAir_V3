@@ -38,6 +38,8 @@
 #define LEN_CONFIG_BYTE 29
 #define LEN_DATA_BYTE 69
 #define LEN_REQUEST 52
+#define LEN_WIFI_BYTE 2
+#define LEN_LORA_BYTE 2
 
 #define LEN_DOWNLINK 5
 

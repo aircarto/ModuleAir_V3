@@ -98,7 +98,7 @@ const char WEB_PAGE_FOOTER[] PROGMEM = "<br/><br/>"
 		"</div><footer class='footer'><div style='padding:16px'>"
 		"<a href='https://www.aircarto.fr/ target='_blank' rel='noreferrer' style='color:#438DBF;'>"
 		"&copy; AirCarto</a>&nbsp;&nbsp("
-                "<a href='https://github.com/aircarto/ModuleAir_V2/labels/bug' target='_blank' rel='noreferrer'>" INTL_REPORT_ISSUE "</a>"
+                "<a href='https://github.com/aircarto/ModuleAir_V3/labels/bug' target='_blank' rel='noreferrer'>" INTL_REPORT_ISSUE "</a>"
 		")</div></footer></body></html>\r\n";
 
 const char WEB_ROOT_PAGE_CONTENT[] PROGMEM = "<a class='b' href='/values'>{t}</a><br/>\

@@ -93,6 +93,7 @@ String SOFTWARE_VERSION_SHORT(SOFTWARE_VERSION_STR_SHORT);
 #define JSON_BUFFER_SIZE2 500
 
 // test variables
+long int sample_count = 0;
 bool bmx280_init_failed = false;
 bool ccs811_init_failed = false;
 bool moduleair_selftest_failed = false;
@@ -1409,6 +1410,15 @@ struct RGB interpolateNO2(float valueSensor, int step1, int step2, int step3, in
 // }
 
 
+
+
+
+
+
+
+
+
+
 void drawgradient(int x, int y, float valueSensor, int step1, int step2, int step3, int step4, int step5)
 {
 	int gradientHeight = 7;
@@ -1671,6 +1681,8 @@ struct forecast atmoSud
 	- 1.0, -1.0, -1.0, -1.0, -1.0, -1.0
 };
 
+uint8_t forecast_selector;
+
 
 /*****************************************************************
  * Time                                             *
@@ -1739,7 +1751,12 @@ unsigned long starttime_MHZ16;
 unsigned long starttime_MHZ19;
 unsigned long starttime_CCS811;
 unsigned long starttime_Cairsens;
+unsigned long act_micro;
 unsigned long act_milli;
+unsigned long last_micro = 0;
+unsigned long min_micro = 1000000000;
+unsigned long max_micro = 0;
+
 unsigned long sending_time = 0;
 unsigned long last_update_attempt;
 // int last_update_returncode;
@@ -1877,6 +1894,7 @@ unsigned long Cairsens_error_count;
 
 unsigned long last_page_load = millis();
 
+unsigned long count_sends = 0;
 unsigned long last_display_millis_oled = 0;
 unsigned long last_display_millis_matrix = 0;
 uint8_t next_display_count = 0;
@@ -3954,18 +3972,8 @@ byte wifi_byte[LEN_WIFI_BYTE];
 byte lora_byte[LEN_LORA_BYTE];
 
 void onRequestData(){
-Debug.printf("Data to be sent through I2C:\n");
-
-for (int i = 0; i < LEN_DATA_BYTE - 1; i++)
-{
-	Debug.printf(" %02x", data_byte[i]);
-	if (i == LEN_DATA_BYTE - 2)
-	{
-		Debug.printf("\n");
-	}
-}
-Wire.write(data_byte, sizeof(data_byte));
-Debug.println("Data request!");
+  Wire.write(data_byte, sizeof(data_byte));
+  Debug.println("Data request!");
 }
 
 void onRequestFurther(){
@@ -4388,7 +4396,7 @@ void onReceiveConfig(int len){
 	further = 0x08;
 }
 
-void onReceiveData(int len){
+void onReceive4(int len){
   while(Wire.available()){
 	Wire.readBytes(matrix_byte,LEN_MATRIX_BYTE);
   }
@@ -4737,6 +4745,11 @@ debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 
 	debug_outln_info(F("\nChipId: "), esp_chipid);
 
+	// if (cfg::has_matrix)
+	// {
+		
+	// }
+
 	powerOnTestSensors();
 
 	delay(50);
@@ -4767,6 +4780,12 @@ debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 	{
 		last_display_millis_matrix = starttime_Cairsens = starttime;
 	}
+
+	if (cfg::display_forecast)
+	{
+		forecast_selector = 0; 
+	}
+
 
 	if (cfg::has_sdcard && sdcard_found)  
 		{
@@ -4803,17 +4822,26 @@ debug_outln_info(F("Altitude: "), cfg::height_above_sealevel);
 	Debug.printf("End of void setup()\n");
 	time_end_setup = millis();
 	Wire.onRequest(onRequestData);
-	Wire.onReceive(onReceiveData);
+	Wire.onReceive(onReceive4);
 }
 
 void loop()
 {
-	Debug.println(msSince(starttime));
-	Debug.println(cfg::sending_intervall_ms);
-
-	send_now = msSince(starttime) > cfg::sending_intervall_ms;
 	
+	unsigned sum_send_time = 0;
+
+	act_micro = micros();
 	act_milli = millis();
+	send_now = msSince(starttime) > cfg::sending_intervall_ms;
+
+	sample_count++;
+
+	if (last_micro != 0)
+	{
+		unsigned long diff_micro = act_micro - last_micro;
+		UPDATE_MIN_MAX(min_micro, max_micro, diff_micro);
+	}
+	last_micro = act_micro;
 
 	if (cfg::npm_read)
 	{
@@ -4872,6 +4900,13 @@ void loop()
 		void *SpActual = NULL;
 		Debug.printf("Free Stack at send_now is: %d \r\n", (uint32_t)&SpActual - (uint32_t)StackPtrEnd);
 
+	// union int16_2_byte
+	// {
+	// 	int16_t temp_int;
+	// 	byte temp_byte[2];
+	// } u1;
+
+
 	union float_2_byte
 	{
 		float temp_float;
@@ -4921,12 +4956,14 @@ void loop()
 	data_byte[22] = ufloat.temp_byte[2];
 	data_byte[23] = ufloat.temp_byte[3];
 
+
 	ufloat.temp_float = last_value_MHZ16;
 
 	data_byte[24] = ufloat.temp_byte[0];
 	data_byte[25] = ufloat.temp_byte[1];
 	data_byte[26] = ufloat.temp_byte[2];
 	data_byte[27] = ufloat.temp_byte[3];
+
 
 	ufloat.temp_float = last_value_MHZ19;
 
@@ -4942,12 +4979,14 @@ void loop()
 	data_byte[34] = ufloat.temp_byte[2];
 	data_byte[35] = ufloat.temp_byte[3];
 
+
 	ufloat.temp_float = last_value_BMX280_T;
 
 	data_byte[36] = ufloat.temp_byte[0];
 	data_byte[37] = ufloat.temp_byte[1];
 	data_byte[38] = ufloat.temp_byte[2];
 	data_byte[39] = ufloat.temp_byte[3];
+
 
 	ufloat.temp_float = last_value_BME280_H;
 
@@ -4980,9 +5019,36 @@ void loop()
 		}
 	}
 
-		yield();  //ENLEVER ICI?
+
+		yield();
+
+		// Resetting for next sampling
+		sample_count = 0;
+		last_micro = 0;
+		min_micro = 1000000000;
+		max_micro = 0;
+		sum_send_time = 0;
 
 		starttime = millis(); // store the start time
+		count_sends++;
+
+		// Update Forecast selector
+		if (cfg::display_forecast)
+		{
+			if (forecast_selector < 5)
+			{
+				forecast_selector++;
+			}
+			else
+			{
+				forecast_selector = 0;
+			}
+		}
+	}
+
+	if (sample_count % 500 == 0)
+	{
+		//		Serial.println(ESP.getFreeHeap(),DEC);
 	}
 }
 

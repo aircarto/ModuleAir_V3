@@ -3908,7 +3908,7 @@ gps getGPSEthernet(String id)
 	reponseAPI = reponseAPI + "}";
 
 	// if the server's disconnected, stop the client:
-	if (!ethernetclientssl.connected())
+	if (!ethernetclient.connected())
 	{
 		endMicros = micros();
 		Debug.println();
@@ -4505,9 +4505,6 @@ void setup()
 	createLoggerConfigs();
 	logEnabledAPIs();
 
-	// starttime = millis(); // store the start time
-	// time_point_device_start_ms = starttime;
-
 	delay(1000);
 
 	Wire.beginTransmission(I2C_SLAVE_ADDR);
@@ -4757,7 +4754,6 @@ void setup()
 void loop()
 {
 	String result_NPM, result_MHZ16, result_MHZ19, result_CCS811, result_Cairsens;
-	;
 
 	unsigned sum_send_time = 0;
 
@@ -4800,11 +4796,20 @@ void loop()
 		RESERVE_STRING(result, MED_STR);
 
 		error = Wire.requestFrom(I2C_SLAVE_ADDR, LEN_REQUEST);
-		Debug.printf("requestFrom: %u byte\n", error);
-		delay(5);
+		Debug.printf("requestFrom: %u bytes\n", error);
 		if (error)
 		{
 			Wire.readBytes(request_byte, error);
+			Debug.printf("Bytes received from I2C:\n");
+			for (int i = 0; i < LEN_REQUEST - 1; i++)
+				{
+					Debug.printf(" %02x", request_byte[i]);
+					if (i == LEN_REQUEST - 2)
+					{
+						Debug.printf("\n");
+					}
+				}
+
 		}
 
 		u_float.temp_byte[0] = request_byte[0];
@@ -4898,10 +4903,6 @@ void loop()
 
 		last_value_no2 = u_float.temp_float;
 
-		Debug.println("TEST TEST TEST");
-		Debug.println(last_value_NPM_P0);
-		Debug.println(String(last_value_NPM_P0));
-
 		add_Value2Json(result_NPM, F("NPM_P0"), F("PM1: "), last_value_NPM_P0);
 		add_Value2Json(result_NPM, F("NPM_P1"), F("PM10:  "), last_value_NPM_P1);
 		add_Value2Json(result_NPM, F("NPM_P2"), F("PM2.5: "), last_value_NPM_P2);
@@ -4911,6 +4912,7 @@ void loop()
 		add_Value2Json(result_MHZ16, F("MHZ16_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ16);
 		add_Value2Json(result_MHZ19, F("MHZ19_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ19);
 		add_Value2Json(result_CCS811, F("CCS811_VOC"), FPSTR(DBG_TXT_VOCPPB), last_value_CCS811);
+		add_Value2Json(result_CCS811, F("ENVEA_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
 		add_Value2Json(result, F("BME280_temperature"), FPSTR(DBG_TXT_TEMPERATURE), last_value_BMX280_T);
 		add_Value2Json(result, F("BME280_pressure"), FPSTR(DBG_TXT_PRESSURE), last_value_BMX280_P);
 		add_Value2Json(result, F("BME280_humidity"), FPSTR(DBG_TXT_HUMIDITY), last_value_BME280_H);
@@ -4926,6 +4928,7 @@ void loop()
 
 			if (cfg::has_ethernet && !ethernet_connection_lost)
 			{
+
 			}
 		}
 
@@ -4936,8 +4939,10 @@ void loop()
 			{
 				sum_send_time += sendSensorCommunity(result, BME280_API_PIN, FPSTR(SENSORS_BME280), "BME280_");
 			}
+
 			if (cfg::has_ethernet && !ethernet_connection_lost)
 			{
+
 			}
 			result = emptyString;
 		}
@@ -5024,6 +5029,7 @@ void loop()
 		add_Value2Json(data, F("time_UTC"), timestringntp);
 
 		String current_time;
+
 		if (rtc_ok)
 		{
 			now = rtc.now();
@@ -5067,7 +5073,6 @@ void loop()
 		}
 		else
 		{
-
 			current_time = "2000-00-00T00:00:00Z";
 		}
 
@@ -5368,6 +5373,22 @@ void loop()
 		data_byte[54] = u_float.temp_byte[2];
 		data_byte[55] = u_float.temp_byte[3];
 
+debug_outln_info(F("AtmoSud ICAIR: "), atmoSud.multi);
+debug_outln_info(F("AtmoSud NO2: "), atmoSud.no2);
+debug_outln_info(F("AtmoSud O3: "), atmoSud.o3);
+debug_outln_info(F("AtmoSud PM10: "), atmoSud.pm10);
+debug_outln_info(F("AtmoSud PM2.5: "), atmoSud.pm2_5);
+debug_outln_info(F("AtmoSud SO2: "), atmoSud.no2);
+debug_outln_info(F("NebuleAir PM1: "), nebuleair.pm1);
+debug_outln_info(F("NebuleAir PM2.5: "), nebuleair.pm2_5);
+debug_outln_info(F("NebuleAir PM10: "), nebuleair.pm10);
+debug_outln_info(F("NebuleAir NO2: "), nebuleair.no2);
+debug_outln_info(F("NebuleAir VOC: "), nebuleair.cov);
+debug_outln_info(F("NebuleAir T°:"), nebuleair.t);
+debug_outln_info(F("NebuleAir RH: "), nebuleair.h);
+debug_outln_info(F("NebuleAir P: "), nebuleair.p);
+
+
 		if (!getLocalTime(&timeinfo))
 		{
 			u_uint16.temp_uint16 = 2000;
@@ -5399,10 +5420,17 @@ void loop()
 
 			data_byte[66] = u_uint16.temp_byte[1];
 			data_byte[67] = u_uint16.temp_byte[0];
+
+debug_outln_info(F("Year:: "), 0);
+debug_outln_info(F("Month: "), 0);
+debug_outln_info(F("Day: "), 0);
+debug_outln_info(F("Hour: "), 0);
+debug_outln_info(F("Minute: "), 0);
+debug_outln_info(F("Second: "), 0);
+
 		}
 		else
 		{
-
 			u_uint16.temp_uint16 = (uint16_t)(2000 + timeinfo.tm_year - 100);
 
 			data_byte[56] = u_uint16.temp_byte[1];
@@ -5432,22 +5460,419 @@ void loop()
 
 			data_byte[66] = u_uint16.temp_byte[1];
 			data_byte[67] = u_uint16.temp_byte[0];
+
+debug_outln_info(F("Year:: "), (uint16_t)(2000 + timeinfo.tm_year - 100));
+debug_outln_info(F("Month: "), (uint16_t)(timeinfo.tm_mon + 1));
+debug_outln_info(F("Day: "), (uint16_t)(timeinfo.tm_mday));
+debug_outln_info(F("Hour: "), (uint16_t)(timeinfo.tm_hour + cfg::utc_offset));
+debug_outln_info(F("Minute: "), (uint16_t)(timeinfo.tm_min));
+debug_outln_info(F("Second: "), (uint16_t)(timeinfo.tm_sec));
 		}
 
-		Debug.printf("HEX values:\n");
+
+//AJOUTER LE RTC
+
+
+		Debug.printf("Bytes to send through I2C:\n");
 		for (int i = 0; i < LEN_DATA_BYTE - 1; i++)
 		{
-			Debug.printf(" %02x", datalora[i]);
+			Debug.printf(" %02x", data_byte[i]);
 			if (i == LEN_DATA_BYTE - 2)
 			{
 				Debug.printf("\n");
 			}
 		}
 
+		Debug.println("TEST1");
 		Wire.beginTransmission(I2C_SLAVE_ADDR);
+		Debug.println("TEST2");
 		Wire.write(data_byte, sizeof(data_byte));
+		Debug.println("TEST3");
 		Debug.println("Data matrix sent!");
 		error = Wire.endTransmission(true);
+		Debug.println("TEST4");
+
+		//ON ENVOIE D'ABORD ET RECOIT APRES
+
+		// delay(100);
+
+		// 	if (cfg::has_wifi && !wifi_connection_lost)
+		// {
+		// 	last_signal_strength_wifi = WiFi.RSSI();
+		// }
+
+		// if (cfg::has_lora && !lora_connection_lost)
+		// {
+		// 	last_signal_strength_lorawan = LMIC.rssi;
+		// }
+
+		// RESERVE_STRING(data, LARGE_STR);
+		// data = FPSTR(data_first_part);
+		// RESERVE_STRING(result, MED_STR);
+
+		// error = Wire.requestFrom(I2C_SLAVE_ADDR, LEN_REQUEST);
+		// Debug.printf("requestFrom: %u bytes\n", error);
+		// if (error)
+		// {
+		// 	Wire.readBytes(request_byte, error);
+		// 	Debug.printf("Bytes received from I2C:\n");
+		// 	for (int i = 0; i < LEN_REQUEST - 1; i++)
+		// 		{
+		// 			Debug.printf(" %02x", request_byte[i]);
+		// 			if (i == LEN_REQUEST - 2)
+		// 			{
+		// 				Debug.printf("\n");
+		// 			}
+		// 		}
+
+		// }
+
+		// u_float.temp_byte[0] = request_byte[0];
+		// u_float.temp_byte[1] = request_byte[1];
+		// u_float.temp_byte[2] = request_byte[2];
+		// u_float.temp_byte[3] = request_byte[3];
+
+		// last_value_NPM_P0 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[4];
+		// u_float.temp_byte[1] = request_byte[5];
+		// u_float.temp_byte[2] = request_byte[6];
+		// u_float.temp_byte[3] = request_byte[7];
+
+		// last_value_NPM_P1 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[8];
+		// u_float.temp_byte[1] = request_byte[9];
+		// u_float.temp_byte[2] = request_byte[10];
+		// u_float.temp_byte[3] = request_byte[11];
+
+		// last_value_NPM_P2 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[12];
+		// u_float.temp_byte[1] = request_byte[13];
+		// u_float.temp_byte[2] = request_byte[14];
+		// u_float.temp_byte[3] = request_byte[15];
+
+		// last_value_NPM_N1 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[16];
+		// u_float.temp_byte[1] = request_byte[17];
+		// u_float.temp_byte[2] = request_byte[18];
+		// u_float.temp_byte[3] = request_byte[19];
+
+		// last_value_NPM_N10 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[20];
+		// u_float.temp_byte[1] = request_byte[21];
+		// u_float.temp_byte[2] = request_byte[22];
+		// u_float.temp_byte[3] = request_byte[23];
+
+		// last_value_NPM_N25 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[24];
+		// u_float.temp_byte[1] = request_byte[25];
+		// u_float.temp_byte[2] = request_byte[26];
+		// u_float.temp_byte[3] = request_byte[27];
+
+		// last_value_MHZ16 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[28];
+		// u_float.temp_byte[1] = request_byte[29];
+		// u_float.temp_byte[2] = request_byte[30];
+		// u_float.temp_byte[3] = request_byte[31];
+
+		// last_value_MHZ19 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[32];
+		// u_float.temp_byte[1] = request_byte[33];
+		// u_float.temp_byte[2] = request_byte[34];
+		// u_float.temp_byte[3] = request_byte[35];
+
+		// last_value_CCS811 = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[36];
+		// u_float.temp_byte[1] = request_byte[37];
+		// u_float.temp_byte[2] = request_byte[38];
+		// u_float.temp_byte[3] = request_byte[39];
+
+		// last_value_BMX280_T = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[40];
+		// u_float.temp_byte[1] = request_byte[41];
+		// u_float.temp_byte[2] = request_byte[42];
+		// u_float.temp_byte[3] = request_byte[43];
+
+		// last_value_BME280_H = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[44];
+		// u_float.temp_byte[1] = request_byte[45];
+		// u_float.temp_byte[2] = request_byte[46];
+		// u_float.temp_byte[3] = request_byte[47];
+
+		// last_value_BMX280_P = u_float.temp_float;
+
+		// u_float.temp_byte[0] = request_byte[48];
+		// u_float.temp_byte[1] = request_byte[49];
+		// u_float.temp_byte[2] = request_byte[50];
+		// u_float.temp_byte[3] = request_byte[51];
+
+		// last_value_no2 = u_float.temp_float;
+
+		// add_Value2Json(result_NPM, F("NPM_P0"), F("PM1: "), last_value_NPM_P0);
+		// add_Value2Json(result_NPM, F("NPM_P1"), F("PM10:  "), last_value_NPM_P1);
+		// add_Value2Json(result_NPM, F("NPM_P2"), F("PM2.5: "), last_value_NPM_P2);
+		// add_Value2Json(result_NPM, F("NPM_N1"), F("NC1.0: "), last_value_NPM_N1);
+		// add_Value2Json(result_NPM, F("NPM_N10"), F("NC10:  "), last_value_NPM_N10);
+		// add_Value2Json(result_NPM, F("NPM_N25"), F("NC2.5: "), last_value_NPM_N25);
+		// add_Value2Json(result_MHZ16, F("MHZ16_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ16);
+		// add_Value2Json(result_MHZ19, F("MHZ19_CO2"), FPSTR(DBG_TXT_CO2PPM), last_value_MHZ19);
+		// add_Value2Json(result_CCS811, F("CCS811_VOC"), FPSTR(DBG_TXT_VOCPPB), last_value_CCS811);
+		// add_Value2Json(result_CCS811, F("ENVEA_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
+		// add_Value2Json(result, F("BME280_temperature"), FPSTR(DBG_TXT_TEMPERATURE), last_value_BMX280_T);
+		// add_Value2Json(result, F("BME280_pressure"), FPSTR(DBG_TXT_PRESSURE), last_value_BMX280_P);
+		// add_Value2Json(result, F("BME280_humidity"), FPSTR(DBG_TXT_HUMIDITY), last_value_BME280_H);
+		// add_Value2Json(result_Cairsens, F("Cairsens_NO2"), FPSTR(DBG_TXT_NO2PPB), last_value_no2);
+
+		// if (cfg::npm_read)
+		// {
+		// 	data += result_NPM;
+		// 	if (cfg::has_wifi && !wifi_connection_lost)
+		// 	{
+		// 		sum_send_time += sendSensorCommunity(result_NPM, NPM_API_PIN, FPSTR(SENSORS_NPM), "NPM_");
+		// 	}
+
+		// 	if (cfg::has_ethernet && !ethernet_connection_lost)
+		// 	{
+
+		// 	}
+		// }
+
+		// if (cfg::bme280_read)
+		// {
+		// 	data += result;
+		// 	if (cfg::has_wifi && !wifi_connection_lost)
+		// 	{
+		// 		sum_send_time += sendSensorCommunity(result, BME280_API_PIN, FPSTR(SENSORS_BME280), "BME280_");
+		// 	}
+
+		// 	if (cfg::has_ethernet && !ethernet_connection_lost)
+		// 	{
+
+		// 	}
+		// 	result = emptyString;
+		// }
+
+		// //These values are not sent because not configured in the SC API:
+
+		// if (cfg::mhz16_read)
+		// {
+		// 	data += result_MHZ16;
+		// }
+
+		// if (cfg::mhz19_read)
+		// {
+		// 	data += result_MHZ19;
+		// }
+
+		// if (cfg::ccs811_read)
+		// {
+		// 	data += result_CCS811;
+		// }
+
+		// add_Value2Json(data, F("samples"), String(sample_count));
+		// add_Value2Json(data, F("min_micro"), String(min_micro));
+		// add_Value2Json(data, F("max_micro"), String(max_micro));
+		// add_Value2Json(data, F("interval"), String(cfg::sending_intervall_ms));
+
+		// if (cfg::has_wifi)
+		// {
+		// 	add_Value2Json(data, F("signal_wifi"), String(last_signal_strength_wifi));
+		// }
+
+		// if (cfg::has_lora)
+		// {
+		// 	add_Value2Json(data, F("signal_lora"), String(last_signal_strength_lorawan));
+		// }
+
+		// add_Value2Json(data, F("latitude"), String(cfg::latitude));
+		// add_Value2Json(data, F("longitude"), String(cfg::longitude));
+		// add_Value2Json(data, F("rgpd"), String(cfg::rgpd));
+		// add_Value2Json(data, F("utc_offset"), String(cfg::utc_offset));
+
+		// String timestringntp;
+		// if (!getLocalTime(&timeinfo))
+		// {
+		// 	Debug.println("Failed to obtain time");
+		// 	timestringntp = "2000-00-00T00:00:00Z";
+		// }
+		// else
+		// {
+		// 	timestringntp += "20";
+		// 	timestringntp += String(timeinfo.tm_year - 100);
+		// 	timestringntp += "-";
+		// 	if (timeinfo.tm_mon + 1 < 10)
+		// 	{
+		// 		timestringntp += "0";
+		// 	}
+		// 	timestringntp += String(timeinfo.tm_mon + 1);
+		// 	timestringntp += "-";
+		// 	if (timeinfo.tm_mday < 10)
+		// 	{
+		// 		timestringntp += "0";
+		// 	}
+		// 	timestringntp += String(timeinfo.tm_mday);
+		// 	timestringntp += "T";
+		// 	if (timeinfo.tm_hour < 10)
+		// 	{
+		// 		timestringntp += "0";
+		// 	}
+		// 	timestringntp += String(timeinfo.tm_hour);
+		// 	timestringntp += ":";
+		// 	if (timeinfo.tm_min < 10)
+		// 	{
+		// 		timestringntp += "0";
+		// 	}
+		// 	timestringntp += String(timeinfo.tm_min);
+		// 	timestringntp += ":";
+		// 	if (timeinfo.tm_sec < 10)
+		// 	{
+		// 		timestringntp += "0";
+		// 	}
+		// 	timestringntp += String(timeinfo.tm_sec);
+		// 	timestringntp += "Z";
+		// }
+		// add_Value2Json(data, F("time_UTC"), timestringntp);
+
+		// String current_time;
+
+		// if (rtc_ok)
+		// {
+		// 	now = rtc.now();
+		// 	current_time += String(now.year(), DEC);
+		// 	current_time += "-";
+
+		// 	if (now.month() < 10)
+		// 	{
+		// 		current_time += "0";
+		// 	}
+		// 	current_time += String(now.month(), DEC);
+		// 	current_time += "-";
+
+		// 	if (now.day() < 10)
+		// 	{
+		// 		current_time += "0";
+		// 	}
+		// 	current_time += String(now.day(), DEC);
+
+		// 	current_time += "T";
+		// 	if (now.hour() < 10)
+		// 	{
+		// 		current_time += "0";
+		// 	}
+		// 	current_time += String(now.hour(), DEC);
+		// 	current_time += ":";
+
+		// 	if (now.minute() < 10)
+		// 	{
+		// 		current_time += "0";
+		// 	}
+		// 	current_time += String(now.minute(), DEC);
+		// 	current_time += ":";
+
+		// 	if (now.second() < 10)
+		// 	{
+		// 		current_time += "0";
+		// 	}
+		// 	current_time += String(now.second());
+		// 	current_time += "Z";
+		// }
+		// else
+		// {
+		// 	current_time = "2000-00-00T00:00:00Z";
+		// }
+
+		// add_Value2Json(data, F("time_RTC"), current_time);
+
+		// if ((unsigned)(data.lastIndexOf(',') + 1) == data.length())
+		// {
+		// 	data.remove(data.length() - 1);
+		// }
+		// data += "]}";
+
+		// yield();
+
+		// if (cfg::has_wifi && !wifi_connection_lost)
+		// {
+		// 	sum_send_time += sendDataToOptionalApis(data);
+
+		// 	//json example for WiFi transmission
+
+		// 	//{"software_version" : "ModuleAirV2-V1-122021", "sensordatavalues" :
+		// 	//[ {"value_type" : "NPM_P0", "value" : "1.84"},
+		// 	//{"value_type" : "NPM_P1", "value" : "2.80"},
+		// 	//{"value_type" : "NPM_P2", "value" : "2.06"},
+		// 	//{"value_type" : "NPM_N1", "value" : "27.25"},
+		// 	//{"value_type" : "NPM_N10", "value" : "27.75"},
+		// 	//{"value_type" : "NPM_N25", "value" : "27.50"},
+		// 	//{"value_type" : "BME280_temperature", "value" : "20.84"},
+		// 	//{"value_type" : "BME280_pressure", "value" : "99220.03"},
+		// 	//{"value_type" : "BME280_humidity", "value" : "61.66"},
+		// 	//{"value_type" : "samples", "value" : "138555"},
+		// 	//{"value_type" : "min_micro", "value" : "933"},
+		// 	//{"value_type" : "max_micro", "value" : "351024"},
+		// 	//{"value_type" : "interval", "value" : "145000"},
+		// 	//{"value_type" : "signal", "value" : "-71"}
+		// 	//{"value_type" : "latitude", "value" : "43.2964"},
+		// 	//{"value_type" : "longitude", "value" : "5.36978"}
+		// 	// ]}
+
+		// 	// https://en.wikipedia.org/wiki/Moving_average#Cumulative_moving_average
+		// 	sending_time = (3 * sending_time + sum_send_time) / 4;
+
+		// 	if (sum_send_time > 0)
+		// 	{
+		// 		debug_outln_info(F("Time for Sending (ms): "), String(sending_time));
+		// 	}
+
+		// 	//RECONNECT ETAIT ICI
+		// }
+
+		// if ((WiFi.status() != WL_CONNECTED || sending_time > 30000 || wifi_connection_lost) && cfg::has_wifi)
+		// {
+		// 	debug_outln_info(F("Connection lost, reconnecting "));
+		// 	WiFi_error_count++;
+		// 	WiFi.reconnect();
+		// 	waitForWifiToConnect(20);
+
+		// 	if (wifi_connection_lost && WiFi.waitForConnectResult(10000) != WL_CONNECTED)
+		// 	{
+		// 		Debug.println("Reconnect failed after WiFi.reconnect()");
+
+		// 		WiFi.disconnect(true, true);
+		// 		WiFi.mode(WIFI_STA);
+		// 		WiFi.setHostname(cfg::fs_ssid);
+		// 		WiFi.begin(cfg::wlanssid, cfg::wlanpwd); // Start WiFI again
+		// 	}
+		// 	debug_outln_info(emptyString);
+		// }
+
+		// if (cfg::has_ethernet && !ethernet_connection_lost)
+		// {
+		// }
+
+		// // only do a restart after finishing sending (Wifi). Befor Lora to avoid conflicts with the LMIC
+		// if (msSince(time_point_device_start_ms) > DURATION_BEFORE_FORCED_RESTART_MS)
+		// {
+		// 	sensor_restart(); //FORCE RESTART OF THE OTHER
+		// }
+
+		// // Resetting for next sampling
+		// last_data_string = std::move(data);
+		// sample_count = 0;
+		// last_micro = 0;
+		// min_micro = 1000000000;
+		// max_micro = 0;
+		// sum_send_time = 0;
 
 		if (cfg::has_lora && lorachip)
 		{
